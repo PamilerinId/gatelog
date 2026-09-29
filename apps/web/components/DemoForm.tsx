@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { m } from "motion/react";
 import { demo, site } from "@/content/copy";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "ok" } | { kind: "error"; message: string };
@@ -49,9 +50,13 @@ export function DemoForm() {
 
   if (status.kind === "ok") {
     return (
-      <div className="form glass-lite" role="status">
+      <m.div className="form glass-lite form--done" role="status" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}>
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <m.circle cx="12" cy="12" r="9" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6 }} />
+          <m.path d="M8 12.5l2.8 2.8L16 9.8" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.4, delay: 0.5 }} />
+        </svg>
         <p className="form__status form__status--ok">{demo.success}</p>
-      </div>
+      </m.div>
     );
   }
 
@@ -87,9 +92,9 @@ export function DemoForm() {
           {status.message}
         </p>
       ) : null}
-      <button className="btn btn--primary" type="submit" disabled={status.kind === "sending"}>
+      <m.button className="btn btn--primary" type="submit" disabled={status.kind === "sending"} whileTap={{ scale: 0.98 }}>
         {status.kind === "sending" ? "Sending…" : demo.submit}
-      </button>
+      </m.button>
       <p className="form__note">We reply on WhatsApp within {site.responseTime}.</p>
     </form>
   );

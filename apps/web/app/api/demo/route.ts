@@ -45,26 +45,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Please check the form and try again." }, { status: 422 });
   }
 
-  const api = process.env.API_BASE_URL;
-  if (!api) {
-    console.info("[demo-request]", { estate, phone: `***${phone.slice(-4)}` });
-    return NextResponse.json({ ok: true });
-  }
-
+  const lead = { name, estate, phone };
   try {
-    const res = await fetch(`${api.replace(/\/$/, "")}/v1/demo-requests`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.API_INTERNAL_TOKEN ? { Authorization: `Bearer ${process.env.API_INTERNAL_TOKEN}` } : {}),
-      },
-      body: JSON.stringify({ name, estate, phone, source: "landing" }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    if (process.env.API_BASE_URL) {
+      await forwardToApi(process.env.API_BASE_URL, lead);
+    } else if (process.env.POSTMARK_SERVER_TOKEN && process.env.LEADS_EMAIL_TO && process.env.LEADS_EMAIL_FROM) {
+      await emailLead(lead);
+    } else if (process.env.NODE_ENV === "production") {
+      // Never accept a lead we cannot deliver.
+      console.error("[demo-request] no delivery configured: set API_BASE_URL or the POSTMARK_* / LEADS_* variables");
+      return NextResponse.json({ error: "We couldn’t send that just now. Please try again shortly." }, { status: 503 });
+    } else {
+      console.info("[demo-request] (dev, not delivered)", { estate, phone: `***${phone.slice(-4)}` });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[demo-request] forward failed", err);
-    return NextResponse.json({ error: "We couldn’t send that just now. Please try again, or message us on WhatsApp." }, { status: 502 });
+    console.error("[demo-request] delivery failed", err);
+    return NextResponse.json({ error: "We couldn’t send that just now. Please try again shortly." }, { status: 502 });
   }
+}
+
+type Lead = { name: string; estate: string; phone: string };
+
+async function forwardToApi(base: string, lead: Lead) {
+  const res = await fetch(`${base.replace(/\/$/, "")}/v1/demo-requests`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.API_INTERNAL_TOKEN ? { Authorization: `Bearer ${process.env.API_INTERNAL_TOKEN}` } : {}),
+    },
+    body: JSON.stringify({ ...lead, source: "landing" }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+}
+
+// Until the API persists leads, the landing page emails each one via Postmark.
+async function emailLead(lead: Lead) {
+  const res = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Postmark-Server-Token": process.env.POSTMARK_SERVER_TOKEN as string,
+    },
+    body: JSON.stringify({
+      From: process.env.LEADS_EMAIL_FROM,
+      To: process.env.LEADS_EMAIL_TO,
+      Subject: `Gatelog demo request: ${lead.estate}`,
+      TextBody: `Name: ${lead.name}\nEstate: ${lead.estate}\nWhatsApp: ${lead.phone}\n\nSent from the Gatelog landing page.`,
+      MessageStream: "outbound",
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Postmark ${res.status}`);
 }

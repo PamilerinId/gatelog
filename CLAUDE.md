@@ -7,3 +7,5 @@
 - Do not regenerate or edit the images in `apps/web/public/images`; the screens were checked string by string.
 - No em dashes in user-facing copy.
 - Never log full phone numbers.
+- Animation uses Motion via `m.*` inside `MotionProvider` (LazyMotion strict). Do not import `motion.*` components.
+- The "Try it" demo accepts only the code 482917 and runs entirely in the browser; keep it labelled as a demo.

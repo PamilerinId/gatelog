@@ -15,8 +15,9 @@ export const site = {
 };
 
 export const nav = [
-  { href: "#gate", label: "The gate today" },
-  { href: "#screens", label: "The three screens" },
+  { href: "#gate", label: "Before and after" },
+  { href: "#try", label: "Try it" },
+  { href: "#screens", label: "Screens" },
   { href: "#record", label: "The record" },
 ];
 
@@ -33,33 +34,6 @@ export const hero = {
     { k: "0", v: "apps for residents to install" },
     { k: "6", v: "digits, signed for one visit" },
     { k: "Offline", v: "verification at the barrier" },
-  ],
-};
-
-export const gateToday = {
-  eyebrow: "The gate today",
-  title: "Six minutes, six times a night.",
-  beats: [
-    {
-      time: "18:41",
-      title: "A car stops. Who are you here to see?",
-      body:
-        "The guest gives a house number. It may be the right one. Behind him, two more cars and a keke are waiting, and it has started to rain.",
-    },
-    {
-      time: "18:43 · no answer",
-      warn: true,
-      title: "So the guard calls the house.",
-      body:
-        "It rings out. The network is poor on that side of the estate, or the phone is on charge somewhere inside. The decision is now the guard’s alone, in the rain, with a queue.",
-    },
-    {
-      time: "18:46",
-      title: "A name goes into the book.",
-      body:
-        "Written by hand, in the dark, by someone who wants the queue to move. Nobody opens that page again unless something has gone wrong, and by then the handwriting is all there is.",
-      book: ["18.41   Tunde   14B", "18.44   delivery   -", "18.52   ______   ___"],
-    },
   ],
 };
 
@@ -141,4 +115,63 @@ export const demo = {
   body: "Thirty minutes with your committee, at your own gate. We turn the network off on purpose.",
   submit: "Book a demo",
   success: "Thank you. We’ll message you on WhatsApp to set a time.",
+};
+
+export const contrast = {
+  eyebrow: "Same gate, same Friday",
+  title: "Two ways the evening goes.",
+  without: "Without Gatelog",
+  with: "With Gatelog",
+  hint: "Tap to switch",
+  rows: [
+    {
+      label: "Arrival",
+      time: ["18:41", "16:04"],
+      before: { title: "“Who are you here to see?”", body: "The guest gives a house number. It may be the right one. Two cars and a keke are waiting behind him, and it has started to rain." },
+      after: { title: "The guest shows six digits.", body: "Tunde’s host cleared him at 13:12 with one WhatsApp message. The code was sent to Tunde, valid for today only." },
+    },
+    {
+      label: "Checking",
+      time: ["18:43", "16:05"],
+      before: { title: "The guard calls the house. It rings out.", body: "The network is poor on that side of the estate, or the phone is charging somewhere inside. Now it’s the guard’s call, alone, with a queue." },
+      after: { title: "Verified on the guard’s phone.", body: "The code carries its own signature, so checking it needs no call and no network. A guessed code fails. Yesterday’s code fails." },
+    },
+    {
+      label: "Record",
+      time: ["18:46", "16:06"],
+      before: { title: "A name goes into the book.", body: "Written by hand, in the dark. Nobody reads that page again unless something has gone wrong, and then the handwriting is all there is." },
+      after: { title: "Logged against 14B Adeniyi Close.", body: "Who came, which home, which resident approved it, which gate, what time. The resident is told on WhatsApp that Tunde is in." },
+    },
+  ],
+};
+
+export const realities = {
+  eyebrow: "Built for how estates actually run",
+  title: "Every objection has already happened at a real gate.",
+  items: [
+    { problem: "The network drops at the gate.", fix: "Codes verify on the guard’s phone, offline. Entries sync when the signal returns." },
+    { problem: "Residents won’t install another app.", fix: "They don’t. The resident’s side of Gatelog is a WhatsApp chat." },
+    { problem: "Codes get shared around.", fix: "Each code is signed for one visit. Reuse it tomorrow and it fails." },
+    { problem: "“Block C, Phase 2, behind the filling station.”", fix: "A four-level estate address, so every entry lands on the right home." },
+    { problem: "The visitors’ book answers nothing.", fix: "A searchable record the committee can export at the end of the month." },
+  ],
+};
+
+export const tryIt = {
+  eyebrow: "Try the guard’s screen",
+  title: "Switch the network off. It still works.",
+  body: "This is the check a guard runs at the barrier. Enter the code Tunde received and see what the gate sees.",
+  code: "482917",
+  hintLabel: "Tunde’s code",
+  network: "Network",
+  on: "On",
+  off: "Off",
+  verified: "Verified on this device",
+  guest: "Tunde Bakare",
+  home: "Guest of 14B Adeniyi Close",
+  refused: "Code not recognised",
+  refusedBody: "Expired, used, or never issued. Turn the guest away or call the resident.",
+  admit: "Admit and log",
+  reset: "Try again",
+  note: "A demo running in your browser. No data leaves this page.",
 };

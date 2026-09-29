@@ -1,5 +1,27 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { animate, m, useInView, useReducedMotion } from "motion/react";
 import { record } from "@/content/copy";
 import { GateMark } from "./ui/icons";
+import { EASE, Item, Reveal } from "./motion/Reveal";
+
+function CountUp({ to }: { to: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+  const reduce = useReducedMotion();
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!inView) return;
+    if (reduce) {
+      setV(to);
+      return;
+    }
+    const c = animate(0, to, { duration: 1.4, ease: EASE, onUpdate: (x) => setV(Math.round(x)) });
+    return () => c.stop();
+  }, [inView, to, reduce]);
+  return <span ref={ref}>{v}</span>;
+}
 
 const HOURS = ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
 
@@ -38,7 +60,19 @@ function ArrivalsChart({ values }: { values: number[] }) {
       <line x1={peakFrom} x2={peakTo} y1={top} y2={top} stroke="#E8B075" strokeDasharray="5 6" strokeOpacity={0.8} />
       <g fill="#6FD8A6">
         {values.map((v, i) => (
-          <rect key={i} className="bar" x={left + i * step + (step - barW) / 2} y={y(v)} width={barW} height={base - y(v)} rx={4} />
+          <m.rect
+            key={i}
+            className="cbar"
+            x={left + i * step + (step - barW) / 2}
+            y={y(v)}
+            width={barW}
+            height={base - y(v)}
+            rx={4}
+            initial={{ scaleY: 0 }}
+            whileInView={{ scaleY: 1 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ duration: 0.7, delay: 0.1 + i * 0.05, ease: EASE }}
+          />
         ))}
       </g>
       <g fill="#a3b8ac" fontFamily="DM Mono, monospace" fontSize={11} textAnchor="middle">
@@ -57,18 +91,28 @@ function ArrivalsChart({ values }: { values: number[] }) {
 function Sparkline() {
   return (
     <svg viewBox="0 0 120 26" aria-hidden="true" style={{ width: "100%", height: 26 }}>
-      <polyline points="0,20 15,17 30,19 45,12 60,14 75,8 90,10 105,5 120,6" fill="none" stroke="#6FD8A6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <m.polyline
+        points="0,20 15,17 30,19 45,12 60,14 75,8 90,10 105,5 120,6"
+        fill="none"
+        stroke="#6FD8A6"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        whileInView={{ pathLength: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 1.2, ease: EASE }}
+      />
     </svg>
   );
 }
 
 function OfflineRing({ pct }: { pct: number }) {
   const r = 48;
-  const c = 2 * Math.PI * r;
   return (
     <svg viewBox="0 0 120 120" role="img" aria-label={`Sample: ${pct}% of entries this week were verified with no network at the gate.`}>
       <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(180,225,200,0.16)" strokeWidth={13} />
-      <circle
+      <m.circle
         cx="60"
         cy="60"
         r={r}
@@ -76,8 +120,11 @@ function OfflineRing({ pct }: { pct: number }) {
         stroke="#E8B075"
         strokeWidth={13}
         strokeLinecap="round"
-        strokeDasharray={`${(pct / 100) * c} ${c}`}
         transform="rotate(-90 60 60)"
+        initial={{ pathLength: 0 }}
+        whileInView={{ pathLength: pct / 100 }}
+        viewport={{ once: true, amount: 0.6 }}
+        transition={{ duration: 1.2, ease: EASE }}
       />
       <text x="60" y="60" textAnchor="middle" fill="#EAF3EC" fontFamily="Manrope Variable, sans-serif" fontWeight={800} fontSize={26}>
         {pct}%
@@ -93,15 +140,27 @@ export function Record() {
   return (
     <section className="section section--a" id="record" aria-labelledby="record-title" style={{ background: "rgba(246,245,240,0.18)" }}>
       <div className="wrap">
-        <div className="section-head reveal">
-          <p className="eyebrow">{record.eyebrow}</p>
-          <h2 className="h2" id="record-title">
-            {record.title}
-          </h2>
-          <p className="lede">{record.body}</p>
-        </div>
+        <Reveal className="section-head">
+          <Item as="p" className="eyebrow">
+            {record.eyebrow}
+          </Item>
+          <Item as="h2" className="h2">
+            <span id="record-title">{record.title}</span>
+          </Item>
+          <Item as="p" className="lede">
+            {record.body}
+          </Item>
+        </Reveal>
 
-        <div className="console glass-dark reveal-settle" role="group" aria-label="Estate dashboard preview, sample data">
+        <m.div
+          className="console glass-dark"
+          role="group"
+          aria-label="Estate dashboard preview, sample data"
+          initial={{ opacity: 0, y: 60, scale: 0.97 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.15 }}
+          transition={{ duration: 0.9, ease: EASE }}
+        >
           <div className="console__bar">
             <div className="console__tabs" aria-hidden="true">
               <span className="console__logo">
@@ -126,13 +185,13 @@ export function Record() {
                   <div className="stat glass-dark-card" key={s.label}>
                     <span className="mono-label">{s.label}</span>
                     <span className={"warn" in s && s.warn ? "stat__value stat__value--warn" : "stat__value"}>
-                      {s.value}
+                      <CountUp to={Number(s.value)} />
                       <small>{s.unit}</small>
                     </span>
                     {s.kind === "spark" ? <Sparkline /> : null}
                     {s.kind === "bar" ? (
                       <div className="meter" aria-hidden="true">
-                        <span style={{ width: `${s.pct}%` }} />
+                        <m.span initial={{ width: 0 }} whileInView={{ width: `${s.pct}%` }} viewport={{ once: true }} transition={{ duration: 1.2, ease: EASE }} />
                       </div>
                     ) : null}
                     {s.kind === "note" ? <span className="stat__note">{s.note}</span> : null}
@@ -203,7 +262,7 @@ export function Record() {
               {record.export}
             </button>
           </div>
-        </div>
+        </m.div>
       </div>
     </section>
   );
