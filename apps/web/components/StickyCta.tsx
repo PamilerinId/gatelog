@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, m, useMotionValueEvent, useScroll } from "motion/react";
+import { site, sticky } from "@/content/copy";
 
-/** Phones only: a glass bar with the one action, shown after the hero and hidden once the form is on screen. */
+/** Phones only: a bar with the one action, shown after the hero and hidden once the form is on screen. */
 export function StickyCta() {
   const { scrollY } = useScroll();
   const [past, setPast] = useState(false);
@@ -29,13 +30,13 @@ export function StickyCta() {
           initial={{ y: 90, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 90, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          transition={{ type: "spring", stiffness: 380, damping: 36 }}
         >
           <a className="sticky-cta__try" href="#try">
-            Try the code check
+            {sticky.tryLabel}
           </a>
-          <a className="btn btn--primary" href="#demo">
-            Book a demo
+          <a className="btn btn--primary btn--sm" href="#demo">
+            {site.cta}
           </a>
         </m.div>
       ) : null}

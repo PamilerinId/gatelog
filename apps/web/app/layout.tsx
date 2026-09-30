@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Image from "next/image";
-import "@fontsource-variable/manrope";
-import "@fontsource/dm-mono/400.css";
-import "@fontsource/dm-mono/500.css";
+import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d1512",
+  themeColor: "#081a33",
   width: "device-width",
   initialScale: 1,
 };
@@ -31,9 +28,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <div className="backdrop" aria-hidden="true">
-          <Image src="/images/backdrop-gate-dawn.jpg" alt="" fill sizes="100vw" quality={70} />
-        </div>
         {children}
       </body>
     </html>

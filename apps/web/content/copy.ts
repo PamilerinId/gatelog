@@ -3,10 +3,14 @@
 //   residents use WhatsApp, codes are six-digit and signed per visit,
 //   the guard verifies offline, entries are logged against a
 //   four-level estate address.
+//
+// The page reads as one weekend at one gate. Stamps mark the moments:
+// Friday evening at the barrier, Monday morning at the estate office.
 
 export const site = {
   name: "Gatelog",
   tagline: "Visitor access for Nigerian estates.",
+  cta: "Book a demo",
   contactEmail: "[CONTACT EMAIL]",
   whatsapp: "[WHATSAPP NUMBER]",
   responseTime: "[RESPONSE TIME]",
@@ -23,28 +27,26 @@ export const nav = [
 
 export const hero = {
   eyebrow: "Visitor access for Nigerian estates",
-  titleLead: "Every estate has the same six minutes",
-  titleAccent: "at the gate.",
+  title: "Every estate has the same six minutes at the gate.",
   body:
     "One message from the resident, sent on WhatsApp. One code at the barrier, verified with the network down. One record the committee can actually read.",
   primary: "Book a demo",
-  secondary: "See the screens",
-  chip: { label: "Verified on this device", name: "Tunde Bakare", meta: "Main Gate · 16:06 · no network" },
-  facts: [
-    { k: "0", v: "apps for residents to install" },
-    { k: "6", v: "digits, signed for one visit" },
-    { k: "Offline", v: "verification at the barrier" },
-  ],
+  secondary: "See the difference",
+  chip: {
+    gate: "Main Gate",
+    net: "No network",
+    waiting: "Guard enters the code",
+    checking: "Checking the signature on this device",
+    label: "Verified on this device",
+    name: "Tunde Bakare",
+  },
 };
 
 export const turn = {
-  lead: "None of this is a discipline problem. It is a",
-  accent: "tooling",
-  tail: "problem, and it has one fix: the resident decides before the guest arrives.",
+  text: "None of this is a discipline problem. It is a tooling problem, and it has one fix: the resident decides before the guest arrives.",
 };
 
 export const screens = {
-  eyebrow: "The product",
   title: "Three screens. One for each person at the gate.",
   body:
     "The resident never leaves WhatsApp. The guard sees one answer. The estate office gets the register. Nothing else to learn.",
@@ -68,34 +70,39 @@ export const screens = {
       alt: "The estate entry log for Friday: Tunde Bakare at 14B Adeniyi Close at 16:06, a grocery delivery to 7 Oyelaran Street at 17:22, and a plumber for C4 Ogunlade Court at 18:40, each approved by the resident.",
     },
   ],
+  choose: "Choose a screen",
 };
 
 export const record = {
-  eyebrow: "The record",
+  stamp: "Monday, 09:00",
   title: "What the committee sees on Monday.",
   body:
     "One console for the Secretary and the Executive: what came through the gates, which of it was cleared in advance, and what happened when the network went down.",
   tabs: ["Overview", "Entries", "Residents", "Gates", "Reports"],
+  range: "This week",
+  sample: "Sample data",
   stats: [
     { label: "Entries logged", value: "412", unit: "this week", kind: "spark" as const },
     { label: "Cleared in advance", value: "87", unit: "%", kind: "bar" as const, pct: 87 },
     { label: "Verified offline", value: "64", unit: "entries", kind: "note" as const, note: "No network at the gate" },
     { label: "Codes refused", value: "9", unit: "attempts", kind: "note" as const, note: "Expired or unrecognised", warn: true },
   ],
+  arrivalsTitle: "Arrivals by hour",
+  arrivalsDay: "Friday",
+  peak: "Evening peak",
   arrivals: [4, 7, 3, 8, 12, 15, 22, 27, 23, 14, 6, 3],
   arrivalsNote: "The evening peak is where the queue forms, and where clearing guests in advance pays for itself.",
+  gatesTitle: "Gates",
+  online: "Online",
+  offline: "Offline",
   gates: [
     { name: "Main Gate", online: true },
     { name: "Back Gate", online: false, sync: "Last sync 18:12" },
   ],
   gatesNote: "Offline gates keep admitting. Their entries appear here when the connection returns.",
   offlinePct: 16,
+  offlineWord: "offline",
   offlineNote: "One entry in six was verified with no connection. Those are the ones a cloud-only system would have turned into an argument.",
-  feed: [
-    { name: "Tunde Bakare", home: "14B Adeniyi Close", time: "16:06" },
-    { name: "Grocery delivery", home: "7 Oyelaran Street", time: "17:22" },
-    { name: "Plumber, Block C", home: "C4 Ogunlade Court", time: "18:40" },
-  ],
   footer: "Every entry carries the home it was for and the resident who approved it",
   export: "Export the month",
 };
@@ -110,19 +117,31 @@ export const already = {
 };
 
 export const demo = {
-  eyebrow: "The last six minutes",
   title: "Watch it work at a gate like yours.",
   body: "Thirty minutes with your committee, at your own gate. We turn the network off on purpose.",
   submit: "Book a demo",
+  sending: "Sending",
   success: "Thank you. We’ll message you on WhatsApp to set a time.",
+  note: "We reply on WhatsApp within",
+  fields: {
+    name: { label: "Your name", placeholder: "Full name" },
+    estate: { label: "Estate name", placeholder: "Estate and city" },
+    phone: { label: "WhatsApp number", placeholder: "+234" },
+  },
+  errors: {
+    name: "Tell us your name.",
+    estate: "Which estate is this for?",
+    phone: "Use a Nigerian number, for example 0803 123 4567.",
+    generic: "Something went wrong. Please try again.",
+  },
 };
 
 export const contrast = {
-  eyebrow: "Same gate, same Friday",
+  stamp: "Friday evening",
   title: "Two ways the evening goes.",
   without: "Without Gatelog",
   with: "With Gatelog",
-  hint: "Tap to switch",
+  group: "Compare the evening without and with Gatelog",
   rows: [
     {
       label: "Arrival",
@@ -146,8 +165,8 @@ export const contrast = {
 };
 
 export const realities = {
-  eyebrow: "Built for how estates actually run",
   title: "Every objection has already happened at a real gate.",
+  cols: ["The objection", "What Gatelog does"],
   items: [
     { problem: "The network drops at the gate.", fix: "Codes verify on the guard’s phone, offline. Entries sync when the signal returns." },
     { problem: "Residents won’t install another app.", fix: "They don’t. The resident’s side of Gatelog is a WhatsApp chat." },
@@ -158,20 +177,46 @@ export const realities = {
 };
 
 export const tryIt = {
-  eyebrow: "Try the guard’s screen",
+  stamp: "Friday, 16:05",
   title: "Switch the network off. It still works.",
   body: "This is the check a guard runs at the barrier. Enter the code Tunde received and see what the gate sees.",
   code: "482917",
   hintLabel: "Tunde’s code",
+  useIt: "Use it",
+  gate: "Main Gate",
+  codeLabel: "Gate code",
+  deviceLabel: "Guard’s code checker. Type digits, Enter to check.",
   network: "Network",
   on: "On",
   off: "Off",
+  idleOnline: "Enter the six digits the guest shows you.",
+  idleOffline: "The network is off. Enter the code anyway.",
   verified: "Verified on this device",
   guest: "Tunde Bakare",
   home: "Guest of 14B Adeniyi Close",
+  checkedOnline: "Checked on this device.",
+  checkedOffline: "Checked on this device. No network used.",
   refused: "Code not recognised",
   refusedBody: "Expired, used, or never issued. Turn the guest away or call the resident.",
   admit: "Admit and log",
+  logged: "Entry logged.",
+  loggedOnline: "Logged and synced",
+  loggedOffline: "Logged, will sync",
   reset: "Try again",
+  keyCheck: "Check",
+  keyCheckLabel: "Check code",
+  keyDelete: "Delete",
   note: "A demo running in your browser. No data leaves this page.",
+};
+
+export const sticky = {
+  tryLabel: "Try the code check",
+};
+
+export const footer = {
+  links: [
+    { href: "#screens", label: "The screens" },
+    { href: "#demo", label: "Book a demo" },
+  ],
+  credit: "Gatelog. Built by PI Technologies.",
 };

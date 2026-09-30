@@ -5,16 +5,17 @@ import { m } from "motion/react";
 import { demo, site } from "@/content/copy";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "ok" } | { kind: "error"; message: string };
-type Errors = Partial<Record<"name" | "estate" | "phone", string>>;
+type Field = "name" | "estate" | "phone";
+type Errors = Partial<Record<Field, string>>;
 
 function validate(data: FormData): Errors {
   const errors: Errors = {};
   const name = String(data.get("name") ?? "").trim();
   const estate = String(data.get("estate") ?? "").trim();
   const phone = String(data.get("phone") ?? "").replace(/[\s-]/g, "");
-  if (name.length < 2) errors.name = "Tell us your name.";
-  if (estate.length < 2) errors.estate = "Which estate is this for?";
-  if (!/^(\+?234|0)\d{10}$/.test(phone)) errors.phone = "Use a Nigerian number, for example 0803 123 4567.";
+  if (name.length < 2) errors.name = demo.errors.name;
+  if (estate.length < 2) errors.estate = demo.errors.estate;
+  if (!/^(\+?234|0)\d{10}$/.test(phone)) errors.phone = demo.errors.phone;
   return errors;
 }
 
@@ -39,33 +40,34 @@ export function DemoForm() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? "Something went wrong. Please try again.");
+        throw new Error(body.error ?? demo.errors.generic);
       }
       form.reset();
       setStatus({ kind: "ok" });
     } catch (err) {
-      setStatus({ kind: "error", message: err instanceof Error ? err.message : "Something went wrong." });
+      setStatus({ kind: "error", message: err instanceof Error ? err.message : demo.errors.generic });
     }
   }
 
   if (status.kind === "ok") {
     return (
-      <m.div className="form glass-lite form--done" role="status" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}>
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <m.circle cx="12" cy="12" r="9" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6 }} />
-          <m.path d="M8 12.5l2.8 2.8L16 9.8" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.4, delay: 0.5 }} />
+      <m.div className="form form--done" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="square" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="1" />
+          <m.path d="M7.5 12.5l3 3 6-6.5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.4, delay: 0.2 }} />
         </svg>
         <p className="form__status form__status--ok">{demo.success}</p>
       </m.div>
     );
   }
 
-  const field = (id: "name" | "estate" | "phone", label: string, props: React.InputHTMLAttributes<HTMLInputElement>) => (
+  const field = (id: Field, props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <div className="field">
-      <label htmlFor={`demo-${id}`}>{label}</label>
+      <label htmlFor={`demo-${id}`}>{demo.fields[id].label}</label>
       <input
         id={`demo-${id}`}
         name={id}
+        placeholder={demo.fields[id].placeholder}
         aria-invalid={errors[id] ? true : undefined}
         aria-describedby={errors[id] ? `demo-${id}-err` : undefined}
         {...props}
@@ -79,10 +81,10 @@ export function DemoForm() {
   );
 
   return (
-    <form className="form glass-lite" onSubmit={onSubmit} noValidate>
-      {field("name", "Your name", { type: "text", autoComplete: "name", placeholder: "Full name" })}
-      {field("estate", "Estate name", { type: "text", autoComplete: "organization", placeholder: "Estate and city" })}
-      {field("phone", "WhatsApp number", { type: "tel", autoComplete: "tel", inputMode: "tel", placeholder: "+234" })}
+    <form className="form" onSubmit={onSubmit} noValidate>
+      {field("name", { type: "text", autoComplete: "name" })}
+      {field("estate", { type: "text", autoComplete: "organization" })}
+      {field("phone", { type: "tel", autoComplete: "tel", inputMode: "tel" })}
       <div className="hp" aria-hidden="true">
         <label htmlFor="demo-website">Website</label>
         <input id="demo-website" name="website" type="text" tabIndex={-1} autoComplete="off" />
@@ -92,10 +94,12 @@ export function DemoForm() {
           {status.message}
         </p>
       ) : null}
-      <m.button className="btn btn--primary" type="submit" disabled={status.kind === "sending"} whileTap={{ scale: 0.98 }}>
-        {status.kind === "sending" ? "Sending…" : demo.submit}
-      </m.button>
-      <p className="form__note">We reply on WhatsApp within {site.responseTime}.</p>
+      <button className="btn btn--primary" type="submit" disabled={status.kind === "sending"}>
+        {status.kind === "sending" ? `${demo.sending}…` : demo.submit}
+      </button>
+      <p className="form__note">
+        {demo.note} {site.responseTime}.
+      </p>
     </form>
   );
 }

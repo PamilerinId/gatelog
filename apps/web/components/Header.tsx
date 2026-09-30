@@ -1,4 +1,4 @@
-import { nav } from "@/content/copy";
+import { nav, site } from "@/content/copy";
 import { GateMark } from "./ui/icons";
 
 export function Header() {
@@ -16,8 +16,8 @@ export function Header() {
             </a>
           ))}
         </nav>
-        <a className="btn btn--primary" href="#demo">
-          Book a demo
+        <a className="btn btn--primary btn--sm" href="#demo">
+          {site.cta}
         </a>
       </div>
     </header>

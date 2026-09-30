@@ -1,31 +1,22 @@
-import { demo, site } from "@/content/copy";
+import { demo, footer, site } from "@/content/copy";
 import { DemoForm } from "./DemoForm";
 import { GateMark } from "./ui/icons";
-import { Item, Reveal } from "./motion/Reveal";
 
 export function Demo() {
   return (
-    <section className="section section--a" id="demo" aria-labelledby="demo-title">
-      <div className="wrap">
-        <Reveal className="demo glass" amount={0.2}>
-          <div className="demo__copy">
-            <Item as="p" className="eyebrow">
-              {demo.eyebrow}
-            </Item>
-            <Item as="h2">
-              <span id="demo-title">{demo.title}</span>
-            </Item>
-            <Item as="p" className="lede">
-              {demo.body}
-            </Item>
-            <Item as="p" className="demo__contact">
-              {site.contactEmail} · {site.whatsapp}
-            </Item>
-          </div>
-          <Item>
-            <DemoForm />
-          </Item>
-        </Reveal>
+    <section className="section section--alt" id="demo" aria-labelledby="demo-title">
+      <div className="wrap demo indent">
+        <div className="demo__copy">
+          <h2 className="h2" id="demo-title">
+            {demo.title}
+          </h2>
+          <p className="lede">{demo.body}</p>
+          <p className="demo__contact">
+            <span>{site.contactEmail}</span>
+            <span>{site.whatsapp}</span>
+          </p>
+        </div>
+        <DemoForm />
       </div>
     </section>
   );
@@ -43,11 +34,16 @@ export function Footer() {
           <p>{site.tagline}</p>
         </div>
         <nav aria-label="Footer">
-          <a href="#screens">The screens</a>
-          <a href="#demo">Book a demo</a>
+          {footer.links.map((l) => (
+            <a key={l.href} href={l.href}>
+              {l.label}
+            </a>
+          ))}
           <a href={site.privacyHref}>{site.privacyLabel}</a>
         </nav>
-        <p>© {new Date().getFullYear()} Gatelog. Built by PI Technologies.</p>
+        <p>
+          © {new Date().getFullYear()} {footer.credit}
+        </p>
       </div>
     </footer>
   );
