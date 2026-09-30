@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { m } from "motion/react";
-import { demo, site } from "@/content/copy";
+import { demo } from "@/content/copy";
 
 type Status = { kind: "idle" } | { kind: "sending" } | { kind: "ok" } | { kind: "error"; message: string };
 type Field = "name" | "estate" | "phone";
@@ -97,9 +97,7 @@ export function DemoForm() {
       <button className="btn btn--primary" type="submit" disabled={status.kind === "sending"}>
         {status.kind === "sending" ? `${demo.sending}…` : demo.submit}
       </button>
-      <p className="form__note">
-        {demo.note} {site.responseTime}.
-      </p>
+      <p className="form__note">{demo.note}</p>
     </form>
   );
 }

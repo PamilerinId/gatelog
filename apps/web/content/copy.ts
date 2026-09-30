@@ -11,9 +11,9 @@ export const site = {
   name: "Gatelog",
   tagline: "Visitor access for Nigerian estates.",
   cta: "Book a demo",
-  contactEmail: "[CONTACT EMAIL]",
-  whatsapp: "[WHATSAPP NUMBER]",
-  responseTime: "[RESPONSE TIME]",
+  contactEmail: "info@gatelog.ng",
+  whatsapp: "0813 399 8868",
+  whatsappHref: "https://wa.me/2348133998868",
   privacyHref: "#top",
   privacyLabel: "Privacy",
 };
@@ -21,7 +21,6 @@ export const site = {
 export const nav = [
   { href: "#gate", label: "Before and after" },
   { href: "#try", label: "Try it" },
-  { href: "#screens", label: "Screens" },
   { href: "#record", label: "The record" },
 ];
 
@@ -44,33 +43,6 @@ export const hero = {
 
 export const turn = {
   text: "None of this is a discipline problem. It is a tooling problem, and it has one fix: the resident decides before the guest arrives.",
-};
-
-export const screens = {
-  title: "Three screens. One for each person at the gate.",
-  body:
-    "The resident never leaves WhatsApp. The guard sees one answer. The estate office gets the register. Nothing else to learn.",
-  items: [
-    {
-      src: "/images/screen-resident.jpg",
-      label: "Resident",
-      body: "Announce a guest in plain words, get told when they arrive. No app, no login.",
-      alt: "A phone showing the Gatelog chat on WhatsApp. The resident writes that Tunde Bakare is coming today around 4. Gatelog replies with gate code 482 917, valid until 6pm, and later confirms Tunde is in at the main gate at 16:06.",
-    },
-    {
-      src: "/images/screen-guard.jpg",
-      label: "Guard",
-      body: "Type the six digits, get one answer, admit or turn away. Works with the data off.",
-      alt: "A guard’s phone with no network, showing gate code 482 917 entered, a card reading verified on this device for Tunde Bakare, guest of 14B Adeniyi Close, and buttons to admit and log or turn away.",
-    },
-    {
-      src: "/images/screen-office.jpg",
-      label: "Estate office",
-      body: "Every entry against the home it was for, exportable for the committee.",
-      alt: "The estate entry log for Friday: Tunde Bakare at 14B Adeniyi Close at 16:06, a grocery delivery to 7 Oyelaran Street at 17:22, and a plumber for C4 Ogunlade Court at 18:40, each approved by the resident.",
-    },
-  ],
-  choose: "Choose a screen",
 };
 
 export const record = {
@@ -122,7 +94,8 @@ export const demo = {
   submit: "Book a demo",
   sending: "Sending",
   success: "Thank you. We’ll message you on WhatsApp to set a time.",
-  note: "We reply on WhatsApp within",
+  note: "We reply on WhatsApp as fast as humanly possible.",
+  whatsappLabel: "WhatsApp",
   fields: {
     name: { label: "Your name", placeholder: "Full name" },
     estate: { label: "Estate name", placeholder: "Estate and city" },
@@ -141,7 +114,39 @@ export const contrast = {
   title: "Two ways the evening goes.",
   without: "Without Gatelog",
   with: "With Gatelog",
-  group: "Compare the evening without and with Gatelog",
+  // What the phone mockup shows, one screen per row below. Mirrors the product screens.
+  phone: {
+    labels: ["Resident", "Guard", "Estate office"],
+    choose: "Choose a screen",
+    chat: {
+      name: "Gatelog",
+      status: "online",
+      out: "Tunde Bakare is coming today, around 4.",
+      replyLead: "Noted. Gate code ",
+      replyCode: "482 917",
+      replyTail: ", valid today until 6pm.",
+      sent: "13:12",
+      input: "Message",
+    },
+    guard: {
+      net: "No network",
+      code: "Gate code",
+      digits: "482917",
+      verified: "Verified on this device",
+      guest: "Tunde Bakare",
+      home: "Guest of 14B Adeniyi Close",
+      admit: "Admit and log",
+      away: "Turn away",
+    },
+    office: {
+      title: "Entry log, Friday",
+      name: "Tunde Bakare",
+      time: "16:06",
+      home: "14B Adeniyi Close, resident approved",
+      gate: "Main Gate, verified offline",
+      earlier: "Earlier today",
+    },
+  },
   rows: [
     {
       label: "Arrival",
@@ -181,31 +186,19 @@ export const tryIt = {
   title: "Switch the network off. It still works.",
   body: "This is the check a guard runs at the barrier. Enter the code Tunde received and see what the gate sees.",
   code: "482917",
-  hintLabel: "Tunde’s code",
-  useIt: "Use it",
-  gate: "Main Gate",
   codeLabel: "Gate code",
-  deviceLabel: "Guard’s code checker. Type digits, Enter to check.",
+  useCode: "Use Tunde’s code, 482 917",
+  clear: "Clear",
   network: "Network",
   on: "On",
   off: "Off",
   idleOnline: "Enter the six digits the guest shows you.",
   idleOffline: "The network is off. Enter the code anyway.",
   verified: "Verified on this device",
-  guest: "Tunde Bakare",
-  home: "Guest of 14B Adeniyi Close",
-  checkedOnline: "Checked on this device.",
-  checkedOffline: "Checked on this device. No network used.",
+  guestLine: "Tunde Bakare, guest of 14B Adeniyi Close.",
+  noNetwork: "No network used.",
   refused: "Code not recognised",
   refusedBody: "Expired, used, or never issued. Turn the guest away or call the resident.",
-  admit: "Admit and log",
-  logged: "Entry logged.",
-  loggedOnline: "Logged and synced",
-  loggedOffline: "Logged, will sync",
-  reset: "Try again",
-  keyCheck: "Check",
-  keyCheckLabel: "Check code",
-  keyDelete: "Delete",
   note: "A demo running in your browser. No data leaves this page.",
 };
 
@@ -215,7 +208,7 @@ export const sticky = {
 
 export const footer = {
   links: [
-    { href: "#screens", label: "The screens" },
+    { href: "#try", label: "Try it" },
     { href: "#demo", label: "Book a demo" },
   ],
   credit: "Gatelog. Built by PI Technologies.",

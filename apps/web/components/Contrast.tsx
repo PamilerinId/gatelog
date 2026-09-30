@@ -1,113 +1,148 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, m, useInView } from "motion/react";
+import { AnimatePresence, m, useInView, useReducedMotion } from "motion/react";
 import { contrast } from "@/content/copy";
+import { GateMark } from "./ui/icons";
 import { EASE } from "./motion/ease";
+import { SceneArrival, SceneBook, SceneCall } from "./story/Scenes";
+import { Phone } from "./story/Phone";
+import { NetworkLines } from "./story/NetworkLines";
 
-type Mode = "before" | "after";
+// Line drawings stand in until the illustrations are in public/images/scenes/.
+const PLACEHOLDERS = [SceneArrival, SceneCall, SceneBook];
+// how long each phone screen holds before the next, in ms
+const HOLD = [4400, 4200, 4000];
 
-function Glyph({ mode }: { mode: Mode }) {
-  return (
-    <span className={mode === "after" ? "glyph glyph--ok" : "glyph glyph--warn"} aria-hidden="true">
-      {mode === "after" ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="square">
-          <path d="M5 12.5l4.5 4.5L19 7.5" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="square">
-          <path d="M12 6v8" />
-          <path d="M12 18v.01" />
-        </svg>
-      )}
-    </span>
-  );
-}
+/**
+ * Before and after as one picture: three comic panels of the evening without Gatelog
+ * form a small network into the mark, which feeds the phone and its three screens.
+ */
+export function Contrast({ art }: { art: (string | null)[] }) {
+  const box = useRef<HTMLDivElement>(null);
+  const panels = useRef<(HTMLDivElement | null)[]>([]);
+  const hub = useRef<HTMLSpanElement>(null);
+  const phone = useRef<HTMLDivElement>(null);
 
-/** The same three moments, logged twice: the evening without Gatelog and the evening with it. */
-export function Contrast() {
-  const [mode, setMode] = useState<Mode>("before");
-  const touched = useRef(false);
-  const ref = useRef<HTMLOListElement>(null);
-  const seen = useInView(ref, { amount: 0.5, once: true });
+  const inView = useInView(box, { amount: 0.3 });
+  const reduce = useReducedMotion() ?? false;
+  const [step, setStep] = useState(0);
+  const [manual, setManual] = useState(false);
+  const run = inView && !reduce;
+  const auto = run && !manual;
 
-  // First time the reader reaches the ledger, flip once to show the change, unless they already did.
   useEffect(() => {
-    if (!seen) return;
-    const t = setTimeout(() => {
-      if (!touched.current) setMode("after");
-    }, 3200);
+    if (!auto) return;
+    const t = setTimeout(() => setStep((s) => (s + 1) % 3), HOLD[step]);
     return () => clearTimeout(t);
-  }, [seen]);
+  }, [auto, step]);
 
-  const pick = (next: Mode) => {
-    touched.current = true;
-    setMode(next);
+  const pick = (i: number) => {
+    setManual(true);
+    setStep(i);
   };
+
+  const row = contrast.rows[step];
 
   return (
     <section className="section contrast" id="gate" aria-labelledby="contrast-title">
       <div className="wrap">
-        <header className="section-head indent hang">
-          <p className="stamp">{contrast.stamp}</p>
-          <h2 className="h2" id="contrast-title">
-            {contrast.title}
-          </h2>
-        </header>
+        <div className="story" ref={box}>
+          <NetworkLines box={box} nodes={panels} hub={hub} phone={phone} run={run} />
 
-        <div className="switch-wrap">
-          <div className="switch" role="group" aria-label={contrast.group}>
-            {(["before", "after"] as const).map((k) => (
-              <button key={k} type="button" className="switch__btn" aria-pressed={mode === k} onClick={() => pick(k)}>
-                {mode === k ? <m.span layoutId="switch-pill" className="switch__pill" transition={{ type: "spring", stiffness: 420, damping: 36 }} /> : null}
-                <span className="switch__label">{k === "before" ? contrast.without : contrast.with}</span>
-              </button>
-            ))}
+          <header className="story__intro">
+            <p className="stamp">{contrast.stamp}</p>
+            <h2 className="h2" id="contrast-title">
+              {contrast.title}
+            </h2>
+          </header>
+
+          <div className="story__scenes">
+            <p className="story__label story__label--without">{contrast.without}</p>
+            <ol className="panels">
+              {contrast.rows.map((r, i) => {
+                const Art = PLACEHOLDERS[i];
+                const src = art[i];
+                return (
+                  <li className="panel-item" key={r.label}>
+                    <div
+                      className="comic"
+                      ref={(el) => {
+                        panels.current[i] = el;
+                      }}
+                    >
+                      {src ? <Image src={src} alt={r.before.body} fill sizes="(max-width: 719px) 30vw, 260px" quality={80} /> : <Art label={r.before.body} />}
+                    </div>
+                    <p className="narration">
+                      <b>{r.time[0]}</b>
+                      {r.before.title}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+
+          <div className="story__hub" aria-hidden="true">
+            <span className="hub" ref={hub}>
+              {run ? (
+                <m.span className="hub__ring" initial={{ opacity: 0.55, scale: 1 }} animate={{ opacity: 0, scale: 1.7 }} transition={{ duration: 1.8, ease: "easeOut", repeat: Infinity }} />
+              ) : null}
+              <GateMark size={26} />
+            </span>
+          </div>
+
+          <div className="story__phone">
+            <p className="story__label story__label--with">{contrast.with}</p>
+            <div ref={phone}>
+              <Phone step={step} />
+            </div>
+          </div>
+
+          <div className="story__after">
+            <div className="steps" role="group" aria-label={contrast.phone.choose}>
+              {contrast.phone.labels.map((label, i) => (
+                <button key={label} type="button" className="step" aria-pressed={step === i} onClick={() => pick(i)}>
+                  <span className="step__bar">
+                    {step === i ? (
+                      <m.span
+                        key={`${i}-${auto}`}
+                        initial={{ scaleX: auto ? 0 : 1 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: auto ? HOLD[i] / 1000 : 0, ease: "linear" }}
+                      />
+                    ) : null}
+                  </span>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <m.div
+                key={step}
+                className="story__caption"
+                aria-hidden="true"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25, ease: EASE }}
+              >
+                <span className="story__time">{row.time[1]}</span>
+                <h3>{row.after.title}</h3>
+                <p>{row.after.body}</p>
+              </m.div>
+            </AnimatePresence>
+            {/* the whole "with" sequence for screen readers, not just the visible step */}
+            <ol className="sr-only">
+              {contrast.rows.map((r) => (
+                <li key={r.label}>
+                  {r.time[1]}. {r.after.title} {r.after.body}
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
-
-        <ol ref={ref} className="ledger" aria-live="polite">
-          {contrast.rows.map((r, i) => {
-            const side = mode === "after" ? r.after : r.before;
-            const time = r.time[mode === "after" ? 1 : 0];
-            return (
-              <li key={r.label} className="ledger__row">
-                <span className="ledger__time">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    <m.span
-                      key={time}
-                      initial={{ y: "100%", opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ y: "-100%", opacity: 0 }}
-                      transition={{ duration: 0.35, delay: i * 0.06, ease: EASE }}
-                    >
-                      {time}
-                    </m.span>
-                  </AnimatePresence>
-                </span>
-                <div className="ledger__main">
-                  <p className="ledger__label">
-                    <Glyph mode={mode} />
-                    {r.label}
-                  </p>
-                  <AnimatePresence mode="wait" initial={false}>
-                    <m.div
-                      key={mode}
-                      className="ledger__text"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.25, delay: i * 0.06 }}
-                    >
-                      <h3>{side.title}</h3>
-                      <p>{side.body}</p>
-                    </m.div>
-                  </AnimatePresence>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import { realities } from "@/content/copy";
+import { realities, turn } from "@/content/copy";
 
 export function Realities() {
   const [objectionCol, fixCol] = realities.cols;
@@ -9,6 +9,7 @@ export function Realities() {
           <h2 className="h2" id="realities-title">
             {realities.title}
           </h2>
+          <p className="lede">{turn.text}</p>
         </header>
 
         <div className="indent">

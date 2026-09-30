@@ -1,4 +1,4 @@
-import { demo, footer, site } from "@/content/copy";
+import { already, demo, footer, site } from "@/content/copy";
 import { DemoForm } from "./DemoForm";
 import { GateMark } from "./ui/icons";
 
@@ -11,9 +11,22 @@ export function Demo() {
             {demo.title}
           </h2>
           <p className="lede">{demo.body}</p>
+          <div className="have">
+            <h3 className="have__title">{already.title}</h3>
+            <ul className="have__list">
+              {already.items.map((t) => (
+                <li className="have__item" key={t.k}>
+                  <b>{t.k}</b>
+                  <span>{t.v}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
           <p className="demo__contact">
-            <span>{site.contactEmail}</span>
-            <span>{site.whatsapp}</span>
+            <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
+            <a href={site.whatsappHref} target="_blank" rel="noopener noreferrer">
+              {demo.whatsappLabel} {site.whatsapp}
+            </a>
           </p>
         </div>
         <DemoForm />
