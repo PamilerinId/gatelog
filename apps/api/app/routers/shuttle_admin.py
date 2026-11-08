@@ -161,11 +161,10 @@ def revoke_card(card_id: UUID, bg: BackgroundTasks, staff: Staff = Depends(admin
 
 @router.post("/admin/homes/{home_id}/house-code")
 def new_house_code(home_id: UUID, bg: BackgroundTasks, staff: Staff = Depends(admin)) -> dict:
-    """A new code for the home, shown once, for the admin to give an elderly resident by phone.
-    The old code stops working at the next sync of each rider phone. Audited, without the code."""
+    """A new home PIN, shown once, for the admin to give an elderly resident (or print on their
+    card). The same PIN serves phone calls to the gate and the shuttle. The old one stops working
+    at each phone's next sync. Audited, without the PIN."""
     with db.session(staff.estate_id) as s:
-        if not shuttle.enabled(s.get(Estate, staff.estate_id)):
-            raise HTTPException(409, "turn the shuttle on in settings first")
         h = _get(s, Home, home_id, "home")
         code = shuttle.set_house_code(h)
         audit.record(s, staff.estate_id, staff.actor, "new_house_code", h)

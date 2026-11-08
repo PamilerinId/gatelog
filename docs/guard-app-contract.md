@@ -176,6 +176,27 @@ the server makes a visit for the walk-in, which comes back in `/state` with `ent
 the phone's entry id, so every gate, the CSO's People tab and the night list see the guest inside.
 The walk-in visit has no resident: nobody confirmed, so nobody is messaged about it.
 
+**Trust levels and the home PIN** (spec: call-the-gate, trust levels). The server records how well
+each admitted entry was verified: `code` and `callback_confirmed` are verified; `pin_confirmed` is
+PIN-verified; `walk_in_admitted` and `phone_announced` are unverified.
+
+- **Home PIN.** A caller from any number can give the home's 4-digit PIN. Check it offline against
+  the home's `house_code_hash` in `homes[]` (the same hash the shuttle uses; null until set), exactly
+  like a guard PIN. **3 wrong tries per call**, then stop and offer the callback or the CSO.
+  - Every check, right or wrong, is a `pin_checks` record: `{id, home_id, ok, context: gate|shuttle,
+    caller_masked?, guard_id, shift_id, at}`. The PIN itself never leaves the phone.
+  - A wrong try texts the home, so send `pin_checks` from the rider's house-code check too
+    (`context: shuttle`).
+- **PIN-verified entries.** Guest here now: entry `method: pin_confirmed`, no `visit_id`; the server
+  makes the visit. Coming later: a `visits` record with `trust: pin_verified`; letting them in from
+  the confirmed list keeps that trust.
+- **Caller number.** When the phone saw the announcing call's number, send it masked on the entry
+  and the PIN check: `caller_masked: "0803•••1234"`. At most the first 4 and last 4 digits; a full
+  number is rejected (422).
+- **Unverified entries** (`walk_in_admitted`, `phone_announced`) text every registered number of the
+  home at once: "Not you? Reply NO". A NO shows in the CSO view under `needs.disputed_today` and goes
+  to the security head by SMS. Nothing changes on the gate phone's side.
+
 **`phone_announced`** (entry method) means admitted on the resident's inbound call alone, with no
 callback. The spec keeps it so the committee can see how often that happens; the app does not
 offer it, because an inbound caller ID is a hint, not proof.
@@ -249,9 +270,10 @@ Each ride shows kind, from, to, how long it has waited, passenger or parcel, and
   then `uid_hash = sha256("gatelog-card-v1|<estate_id>|<UID hex, upper case, no separators>")`, hex.
   Look it up in `shuttle.cards`: send `card_id` and `resident_id`. An unknown card says so; the rider
   can use the house code instead. Works offline.
-- `house_code`: the resident says their home's 4 digits; check offline against the home's
-  `house_code_hash` exactly like a guard PIN (same format, same PBKDF2). Send `resident_id` if the
-  rider picked who it is. Five wrong tries on one home: wait 5 minutes.
+- `house_code`: the resident says their home PIN (4 digits, the same PIN as for phone calls to the
+  gate); check offline against the home's `house_code_hash` exactly like a guard PIN (same format,
+  same PBKDF2). Send `resident_id` if the rider picked who it is. Send a `pin_checks` record
+  (`context: shuttle`) for every try. Three wrong tries on one home: stop and use the card or vouch.
 - `guard` (a gate booking the guard handed over) or `rider` (the rider vouches): no check.
 
 **Position.** While a rider's shift is open, and only then, send the phone's position every 15

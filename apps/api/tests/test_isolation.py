@@ -77,6 +77,8 @@ def fill(owner, e, tag: str, resident_phone: str, sender: str) -> dict:
         "exits": [{"id": str(uuid.uuid4()), "method": "list_tap", "entry_id": entry_1, "at": "2026-10-21T08:04:00Z", **who}],
     })
     ids["visit"] = visits[f"late {tag.lower()}"]["id"]
+    client.post("/v1/device/sync", headers=e.dev, json={"pin_checks": [
+        {"id": str(uuid.uuid4()), "home_id": e.home_id, "ok": False, "at": "2026-10-21T08:04:30Z", **who}]})
 
     # Shuttle and map: boundary, a place, a motorcycle, a card, a ride with an event, positions.
     client.put("/v1/admin/map/boundary", headers=a, json={"ring": RING})

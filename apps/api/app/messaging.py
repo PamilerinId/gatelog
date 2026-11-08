@@ -42,7 +42,9 @@ TEMPLATES: dict[str, tuple[str, tuple[str, ...]]] = {
 
 # Shown in the Exco's usage view but never counted towards the allowance or billed, so no one
 # hesitates to raise an alarm or look up an emergency number.
-UNBILLED_KINDS = frozenset({"sos_not_live", "numbers"})
+# Safety alerts to a home (an unchecked entry, a wrong home PIN, a disputed entry) too: nobody
+# should weigh the cost of telling a home that a stranger was let in for them.
+UNBILLED_KINDS = frozenset({"sos_not_live", "numbers", "unverified_entry", "wrong_pin", "entry_disputed"})
 UNBILLED_PREFIXES = ("sos",)
 
 
@@ -61,7 +63,8 @@ PURPOSES = {
     "event_pass": "Event and worker passes", "worker_pass": "Event and worker passes",
     "numbers": "Emergency numbers", "sos_not_live": "SOS",
     "ride_booked": "Shuttle", "ride_question": "Shuttle", "ride_cancelled": "Shuttle", "ride_on_way": "Shuttle",
-    "parcel_on_way": "Shuttle", "house_code": "Shuttle",
+    "parcel_on_way": "Shuttle", "house_code": "Home PIN", "dispute_noted": "Gate safety alerts",
+    "unverified_entry": "Gate safety alerts", "wrong_pin": "Gate safety alerts", "entry_disputed": "Gate safety alerts",
 }
 
 

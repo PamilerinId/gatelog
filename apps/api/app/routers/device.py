@@ -35,7 +35,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .. import abuse, clock, db, directory, messaging, push, shifts, shuttle, storage, visits
+from .. import abuse, clock, db, directory, messaging, push, shifts, shuttle, storage, trust, visits
 from .. import stay as stay_mod
 from ..auth import DeviceAuth, current_device, new_device_token, sha256
 from ..estate_settings import EstateSettings
@@ -44,6 +44,7 @@ from ..models import (
     RIDE_OPEN_STATES,
     Callback,
     Device,
+    PinCheck,
     Place,
     Position,
     ResidentCard,
@@ -71,7 +72,9 @@ router = APIRouter(prefix="/v1/device", tags=["gate device"])
 
 FUTURE_SKEW = timedelta(minutes=5)
 WALK_UP_NS = UUID("6f1d7c2e-3b4a-4f5e-9a8b-0c1d2e3f4a5b")  # namespace for visits made from flow B entries
-WALK_UP_METHODS = ("callback_confirmed", "phone_announced", "walk_in_admitted")  # entries that get a visit when sent without one
+WALK_UP_METHODS = ("callback_confirmed", "pin_confirmed", "phone_announced", "walk_in_admitted")  # entries that get a visit when sent without one
+# A caller's number as the phone may send it: never more than 4 leading and 4 trailing digits.
+CALLER_MASK = r"^\+?\d{0,4}[•*]{2,4}\d{4}$"
 
 
 # --- pairing -------------------------------------------------------------------------------
@@ -166,8 +169,9 @@ def build_state(s: Session, dev: DeviceAuth) -> dict:
             "callback_required": h.id in callback_homes, "residents": residents_by_home.get(h.id, []),
             "vehicles": plates_by_home.get(h.id, []),
             "lat": h.lat, "lng": h.lng,
-            # Checked offline by a rider, like a guard PIN. Absent until the household asks for it.
-            **({"house_code_hash": h.house_code_hash} if with_shuttle else {}),
+            # The home PIN, checked offline at the gate (phone announcements) and by a shuttle
+            # rider, like a guard PIN. Null until the household asks for it or the admin sets it.
+            "house_code_hash": h.house_code_hash,
         }
         for h in s.scalars(select(Home))
     ]
@@ -282,6 +286,8 @@ class VisitIn(BaseModel):
     stay_type: Literal["hour", "hours", "overnight", "multi_day"]
     stay_minutes: int | None = None
     stay_given: bool = True
+    # verified: confirmed on a callback; pin_verified: the caller gave the home PIN.
+    trust: Literal["verified", "pin_verified"] = "verified"
 
 
 class CallbackIn(BaseModel):
@@ -299,7 +305,7 @@ class EntryIn(BaseModel):
     id: UUID
     home_id: UUID
     guest_name: str = Field(min_length=1, max_length=120)
-    method: Literal["code", "phone_announced", "callback_confirmed", "walk_in_admitted", "refused"]
+    method: Literal["code", "phone_announced", "callback_confirmed", "pin_confirmed", "walk_in_admitted", "refused"]
     visit_id: UUID | None = None
     guard_id: UUID | None = None
     shift_id: UUID | None = None
@@ -309,6 +315,20 @@ class EntryIn(BaseModel):
     decided_by: UUID | None = None
     reason: str | None = Field(default=None, max_length=280)
     note: str | None = Field(default=None, max_length=280)
+    caller_masked: str | None = Field(default=None, pattern=CALLER_MASK)  # the announcing call, if the phone saw it
+    at: datetime
+
+
+class PinCheckIn(BaseModel):
+    """A home PIN checked on the phone, right or wrong. The PIN itself never leaves the phone."""
+
+    id: UUID
+    home_id: UUID
+    ok: bool
+    context: Literal["gate", "shuttle"] = "gate"
+    caller_masked: str | None = Field(default=None, pattern=CALLER_MASK)
+    guard_id: UUID | None = None
+    shift_id: UUID | None = None
     at: datetime
 
 
@@ -405,6 +425,7 @@ class CardIn(BaseModel):
 
 
 class SyncIn(BaseModel):
+    pin_checks: list[PinCheckIn] = []
     cards: list[CardIn] = []
     rides: list[RideIn] = []
     ride_events: list[RideEventIn] = []
@@ -463,6 +484,7 @@ class _Sync:
             id=v.id, estate_id=self.estate.id, home_id=v.home_id, resident_id=v.resident_id, guest_name=v.guest_name.strip(),
             window_start=v.window_start, window_end=v.window_end, source="phone_announced", code_issued=False,
             expected_until=v.expected_until, stay_type=v.stay_type, stay_minutes=v.stay_minutes, stay_given=v.stay_given, state="expected",
+            trust=v.trust,
         )):
             self.changed = True
 
@@ -497,13 +519,18 @@ class _Sync:
         visit_id = e.visit_id
         if visit_id is None and e.method in WALK_UP_METHODS and not self._seen(Entry, e.id):
             visit_id = self._visit_for_walk_up(e)
+        level = trust.entry_trust(e.method, self.s.get(Visit, visit_id) if visit_id else None)
         row = dict(
             id=e.id, estate_id=self.estate.id, visit_id=visit_id, home_id=e.home_id, guest_name=e.guest_name.strip(),
             guard_id=e.guard_id, shift_id=e.shift_id, device_id=self.dev.id, gate_id=e.gate_id or self.dev.gate_id, method=e.method,
             plate=normalise_plate(e.plate), decided_by=e.decided_by, reason=(e.reason or "").strip() or None, note=e.note, at=self._at(e.at),
+            trust=level, caller_masked=e.caller_masked,
         )
         if self._insert(Entry, row):
-            visits.on_entry(self.s, self.estate, self.s.get(Entry, e.id))
+            entry = self.s.get(Entry, e.id)
+            visits.on_entry(self.s, self.estate, entry)
+            if level == "unverified":
+                trust.alert_unverified(self.s, self.estate, entry)
             self.changed = True
 
     def _seen(self, model, id_: UUID) -> bool:
@@ -535,6 +562,7 @@ class _Sync:
             id=vid, estate_id=self.estate.id, home_id=e.home_id, resident_id=resident_id, guest_name=e.guest_name.strip(),
             window_start=at, window_end=max(end_of_day, at + timedelta(hours=1)), source="phone_announced", code_issued=False,
             expected_until=s.until, stay_type=s.type, stay_minutes=None, stay_given=False, state="expected",
+            trust=trust.BY_METHOD[e.method],
         ).on_conflict_do_nothing(index_elements=["id"]))
         if cb and cb.visit_id is None:
             cb.visit_id = vid
@@ -615,6 +643,20 @@ class _Sync:
             self.changed = True
         self.out.accepted.append(c.item_id)
 
+
+    def pin_check(self, c: PinCheckIn) -> None:
+        if self._seen(PinCheck, c.id):
+            self.out.duplicates.append(c.id)
+            return
+        if not self._ours(Home, c.home_id) or not self._ours(Guard, c.guard_id) or not self._ours(Shift, c.shift_id):
+            return self._reject(c.id, "unknown home, guard or shift")
+        check = PinCheck(id=c.id, estate_id=self.estate.id, home_id=c.home_id, ok=c.ok, context=c.context, caller_masked=c.caller_masked,
+                         guard_id=c.guard_id, shift_id=c.shift_id, device_id=self.dev.id, at=self._at(c.at))
+        self.s.add(check)
+        self.s.flush()
+        if not c.ok:
+            trust.alert_wrong_pin(self.s, self.estate, check)
+        self.out.accepted.append(c.id)
 
     # --- the shuttle -------------------------------------------------------------------------
 
@@ -699,6 +741,8 @@ def sync(body: SyncIn, bg: BackgroundTasks, dev: DeviceAuth = Depends(current_de
             run.pin(p)
         for sh in sorted(body.shifts, key=lambda sh: sh.started_at):
             run.shift(sh)
+        for pc in body.pin_checks:
+            run.pin_check(pc)
         for c in body.cards:
             run.card(c)
         for r in body.rides:
@@ -847,6 +891,12 @@ def cso_overview(dev: DeviceAuth = Depends(current_device), x_shift_id: str | No
                     for d in quiet
                 ],
                 "night_list_unchecked": unchecked,
+                # The home said NO to "Not you?": a stranger may be inside on a description.
+                "disputed_today": [
+                    {"entry_id": str(e.id), "guest_name": e.guest_name, "address": homes.get(e.home_id), "gate": gates.get(e.gate_id),
+                     "decided_by": who(e.decided_by), "at": _iso(e.at), "disputed_at": _iso(e.disputed_at)}
+                    for e in today if e.disputed_at is not None
+                ],
                 # Shuttle rides nobody has taken 10 minutes after they were wanted.
                 "rides_waiting": [
                     {"ride_id": str(r.id), "kind": r.kind, "from": r.pickup_label, "to": r.dropoff_label, "wanted_at": _iso(r.wanted_at)}

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from .. import clock, db, directory, usage, visits
 from ..auth import Staff, require
-from ..models import ENTRY_METHODS, Entry, Estate, Exit, Gate, Guard, Home, Rollup, Visit
+from ..models import ENTRY_METHODS, TRUST_LEVELS, Entry, Estate, Exit, Gate, Guard, Home, Rollup, Visit
 
 router = APIRouter(prefix="/v1/reports", tags=["committee"])
 reader = require("admin", "committee", "security_head", "treasurer", "org_admin", "org_viewer")
@@ -59,6 +59,19 @@ def summary(s: Session, estate: Estate, since: datetime, until: datetime) -> dic
     resident_exits = sum(1 for e in measurable if e.id in exits and exits[e.id].method == "resident_confirmed")
     missed = sum(1 for e in measurable if e.id in exits and exits[e.id].method == "rollup_closed")
     phone = methods["phone_announced"] + methods["callback_confirmed"]
+    # Trust (spec: call-the-gate). Phone entries are everything not admitted on a code.
+    phone_entries = [e for e in admitted if e.method != "code"]
+    guards = {g.id: g.name for g in s.scalars(select(Guard))}
+
+    def trust_split(rows) -> dict:
+        c = Counter(e.trust for e in rows)
+        return {t: c[t] for t in TRUST_LEVELS}
+
+    by_gate_t: dict[str, list] = defaultdict(list)
+    by_guard_t: dict[str, list] = defaultdict(list)
+    for e in phone_entries:
+        by_gate_t[gates.get(e.gate_id, "?")].append(e)
+        by_guard_t[guards.get(e.guard_id, "?")].append(e)
 
     rollups = s.scalars(select(Rollup).where(Rollup.for_date >= since.astimezone(tz).date(), Rollup.for_date <= until.astimezone(tz).date()).order_by(Rollup.for_date)).all()
     entries_dir = directory.entries(s)
@@ -68,6 +81,16 @@ def summary(s: Session, estate: Estate, since: datetime, until: datetime) -> dic
         "entries_by_day": [{"date": d, **{m: c[m] for m in METHODS}} for d, c in sorted(by_day.items())],
         "entries_by_gate": [{"gate": g, "count": n} for g, n in by_gate.most_common()],
         "phone_share": round(phone / len(admitted), 3) if admitted else None,
+        "trust": {
+            "admitted": trust_split(admitted),
+            "phone_entries": trust_split(phone_entries),
+            "phone_by_gate": [{"gate": g, **trust_split(rows)} for g, rows in sorted(by_gate_t.items())],
+            "phone_by_guard": [{"guard": g, **trust_split(rows)} for g, rows in sorted(by_guard_t.items())],
+            "disputes": [
+                {"entry_id": e.id, "guest_name": e.guest_name, "gate": gates.get(e.gate_id), "at": e.at, "disputed_at": e.disputed_at}
+                for e in admitted if e.disputed_at is not None
+            ],
+        },
         "exits": {
             "measurable_entries": len(measurable),
             "gate_confirmed": gate_exits,
@@ -111,7 +134,7 @@ def export(
         tz = visits.tz(estate)
         if view == "entries":
             ws.title = "Entries"
-            ws.append(["Date", "Time", "Guest", "Home", "Gate", "Method", "Plate", "Decided by", "Reason", "Exit", "Exit method"])
+            ws.append(["Date", "Time", "Guest", "Home", "Gate", "Method", "Trust", "Disputed", "Plate", "Decided by", "Reason", "Exit", "Exit method"])
             rows = s.scalars(select(Entry).where(Entry.at >= since, Entry.at < until).order_by(Entry.at)).all()
             homes = {h.id: h.address for h in s.scalars(select(Home))}
             gates = {g.id: g.name for g in s.scalars(select(Gate))}
@@ -121,7 +144,7 @@ def export(
                 at = e.at.astimezone(tz)
                 x = exits.get(e.id)
                 ws.append([at.date().isoformat(), at.strftime("%H:%M"), _text(e.guest_name), _text(homes.get(e.home_id)),
-                           _text(gates.get(e.gate_id)), e.method, e.plate, _text(people.get(e.decided_by)), _text(e.reason),
+                           _text(gates.get(e.gate_id)), e.method, e.trust or "", "yes" if e.disputed_at else "", e.plate, _text(people.get(e.decided_by)), _text(e.reason),
                            x.at.astimezone(tz).strftime("%Y-%m-%d %H:%M") if x else "", x.method if x else ""])
         else:
             data = summary(s, estate, since, until)

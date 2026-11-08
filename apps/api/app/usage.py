@@ -31,11 +31,14 @@ def report(s: Session, estate: Estate, month: date) -> dict:
         .group_by(MessageLog.kind, MessageLog.channel)
     ).all()
     by_purpose: dict[str, Counter] = {}
+    billed_purposes: set[str] = set()
     sms_billable = 0
     for kind, channel, n in rows:
         by_purpose.setdefault(messaging.purpose(kind), Counter())[channel] += n
-        if channel == "sms" and messaging.billable(kind):
-            sms_billable += n
+        if messaging.billable(kind):
+            billed_purposes.add(messaging.purpose(kind))
+            if channel == "sms":
+                sms_billable += n
 
     homes = s.scalar(select(func.count()).select_from(Home)) or 0
     allowance = st.sms_allowance_per_home * homes if st.sms_allowance_per_home is not None else None
@@ -51,7 +54,7 @@ def report(s: Session, estate: Estate, month: date) -> dict:
     return {
         "month": month.strftime("%Y-%m"),
         "by_purpose": [
-            {"purpose": p, "whatsapp": c.get("whatsapp", 0), "sms": c.get("sms", 0), "billed": p not in ("SOS", "Emergency numbers")}
+            {"purpose": p, "whatsapp": c.get("whatsapp", 0), "sms": c.get("sms", 0), "billed": p in billed_purposes}
             for p, c in sorted(by_purpose.items())
         ],
         "sms_counted": sms_billable,
@@ -59,5 +62,5 @@ def report(s: Session, estate: Estate, month: date) -> dict:
         "sms_projected": projected,
         "projected_overage_naira": overage,
         "allowance_used": round(projected / allowance, 3) if allowance else None,
-        "note": "SOS and emergency-number messages are shown but never counted or billed.",
+        "note": "SOS, emergency-number and gate safety messages are shown but never counted or billed.",
     }

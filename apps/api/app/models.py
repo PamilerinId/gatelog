@@ -40,7 +40,10 @@ VISIT_SOURCES = ("whatsapp", "sms", "phone_announced", "ivr")
 STAY_TYPES = ("hour", "hours", "overnight", "multi_day")
 VISIT_STATES = ("expected", "inside", "left", "overstay", "rollup_closed", "cancelled")
 CALLBACK_OUTCOMES = ("confirmed", "declined", "no_answer")
-ENTRY_METHODS = ("code", "phone_announced", "callback_confirmed", "walk_in_admitted", "refused")
+ENTRY_METHODS = ("code", "phone_announced", "callback_confirmed", "pin_confirmed", "walk_in_admitted", "refused")
+# How well an admitted entry was verified (spec: call-the-gate, trust levels).
+TRUST_LEVELS = ("verified", "pin_verified", "unverified")
+PIN_CHECK_CONTEXTS = ("gate", "shuttle")
 EXIT_METHODS = ("code", "list_tap", "resident_confirmed", "rollup_closed")
 NUDGE_REPLIES = ("staying", "left", "none")
 STAFF_ROLES = ("admin", "committee", "security_head", "treasurer", "org_admin", "org_viewer", "ops")
@@ -375,6 +378,9 @@ class Visit(Base):
     stay_minutes: Mapped[int | None] = mapped_column(Integer)
     stay_given: Mapped[bool] = mapped_column(Boolean, default=True)  # False: estate default applied
     state: Mapped[str] = mapped_column(String(16), default="expected")
+    # verified: by message from a registered number, or confirmed on a callback; pin_verified:
+    # a caller from any number gave the home PIN; unverified: the CSO's decision on a description.
+    trust: Mapped[str] = mapped_column(String(12), default="verified", server_default="verified")
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -422,6 +428,13 @@ class Entry(Base):
     decided_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("guards.id"))
     reason: Mapped[str | None] = mapped_column(String(280))
     note: Mapped[str | None] = mapped_column(String(280))
+    # Set by the server for every admitted entry; null for refusals.
+    trust: Mapped[str | None] = mapped_column(String(12))
+    # The number the announcing call came from, masked ("0803•••1234"), when the phone saw it.
+    caller_masked: Mapped[str | None] = mapped_column(String(16))
+    # The home replied NO to the "Not you?" message: who and when.
+    disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disputed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("residents.id", ondelete="SET NULL"))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     synced_at: Mapped[datetime] = created()
 
@@ -640,6 +653,25 @@ class InboundSeen(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class PinCheck(Base):
+    """Every time a gate or rider phone checked a home PIN, right or wrong. Append-only: a wrong
+    try alerts the home, and the Exco sees how often PINs are tried."""
+
+    __tablename__ = "pin_checks"
+    __table_args__ = (_check("context", PIN_CHECK_CONTEXTS, "ck_pin_checks_context"), Index("ix_pin_checks_home", "home_id", "at"))
+    id: Mapped[uuid.UUID] = pk()  # client-generated
+    estate_id: Mapped[uuid.UUID] = estate_fk()
+    home_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("homes.id", ondelete="CASCADE"))
+    ok: Mapped[bool] = mapped_column(Boolean)
+    context: Mapped[str] = mapped_column(String(8))
+    caller_masked: Mapped[str | None] = mapped_column(String(16))
+    guard_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("guards.id"))
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    synced_at: Mapped[datetime] = created()
+
+
 # --- Estate shuttle ----------------------------------------------------------------------
 
 
@@ -764,6 +796,6 @@ TENANT_TABLES = [
     for t in (
         Zone, Street, Home, Resident, PhoneNumber, Gate, Guard, Shift, Vehicle, Device, Visit, Callback, Entry, Exit,
         OverstayNudge, Rollup, RollupItem, DirectoryReport, Conversation, MessageLog, ImportBatch, AuditEvent,
-        Place, Shuttle, ResidentCard, Ride, RideEvent, Position,
+        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck,
     )
 ]

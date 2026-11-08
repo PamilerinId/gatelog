@@ -242,7 +242,8 @@ def test_walk_ins_show_at_every_gate_and_on_the_night_list(owner, outbox, at):
          "decided_by": cso, "reason": "Known to the CSO", "at": "2026-10-21T07:00:00Z"}]})
     visit = next(v for v in client.get("/v1/device/state", headers=e.dev).json()["visits"] if v["entry_id"] == entry_id)
     assert visit["state"] == "inside" and visit["resident_id"] is None
-    assert len(outbox.sent) == sent  # nobody confirmed, so nobody is messaged
+    alerts = [m for m in outbox.sent[sent:] if m.kind == "unverified_entry"]
+    assert len(alerts) == 1 and alerts[0].channel == "sms"  # nobody confirmed, so the home is told: a second pair of eyes
 
     at(21, 22, 5)
     client.post("/internal/jobs/tick")

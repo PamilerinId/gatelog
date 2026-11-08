@@ -24,7 +24,7 @@ from datetime import timedelta
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from . import abuse, announce, codes, db, directory, messaging, phones, shuttle, stay, visits
+from . import abuse, announce, codes, db, directory, messaging, phones, shuttle, stay, trust, visits
 from .estate_settings import EstateSettings
 from .models import Conversation, Estate, Home, OverstayNudge, PhoneNumber, Resident, Ride, Visit
 
@@ -43,7 +43,9 @@ _SOS = re.compile(r"^\s*(sos|help|emergency)\b", re.I)
 _NUMBERS = re.compile(r"^\s*(numbers?|emergency numbers)\s*$", re.I)
 _CANCEL = re.compile(r"^\s*cancel\b", re.I)
 _CANCEL_RIDE = re.compile(r"^\s*cancel\s+(?:my\s+|the\s+)?(?:ride|shuttle)\b", re.I)
-_HOUSE_CODE = re.compile(r"^\s*house\s*code\s*[.!?]?\s*$", re.I)
+_HOUSE_CODE = re.compile(r"^\s*(?:house\s*code|home\s*pin|pin)\s*[.!?]?\s*$", re.I)
+_NEW_PIN = re.compile(r"^\s*new\s*(?:home\s*)?(?:pin|house\s*code)\s*[.!?]?\s*$", re.I)
+_NO = re.compile(r"^\s*no\s*[.!]?\s*$", re.I)
 NO_SHUTTLE = "Your estate does not run a shuttle on Gatelog."
 _LEFT = re.compile(r"^\s*(2|left|gone|already left|he left|she left|they left)\b", re.I)
 _STAYING = re.compile(r"^\s*(1|staying|still here|yes)\b[\s,.:-]*", re.I)
@@ -87,6 +89,10 @@ class Turn:
             self.cancel_ride()
         elif _CANCEL.match(body):
             self.cancel()
+        elif _NO.match(body):
+            self.dispute()
+        elif _NEW_PIN.match(body):
+            self.new_home_pin()
         elif _HOUSE_CODE.match(body):
             self.send_house_code()
         elif m := shuttle.RIDE_WORD.match(body):
@@ -357,21 +363,44 @@ class Turn:
         self.reply(f"Cancelled your ride from {ride.pickup_label} to {ride.dropoff_label}.", "ride_cancelled")
         self.result.changed = True
 
+    # --- the home PIN and the second pair of eyes ------------------------------------------
+
+    def _pin_text(self, code: str) -> str:
+        rider = " or to the shuttle rider" if shuttle.enabled(self.estate) else ""
+        return f"Your home PIN is {code}. Give it when you call the gate about a guest{rider}. Never share it outside your home."
+
     def send_house_code(self) -> None:
-        if not shuttle.enabled(self.estate):
-            self.reply(NO_SHUTTLE, "house_code")
-            return
+        """The home PIN, to the number that asked. Safe against a forged sender: the reply goes
+        to the real number, not to whoever forged it."""
         if not abuse.hit(self.s, abuse.Limit("house-code", 3, timedelta(days=1)), str(self.resident.home_id)):
-            self.reply("We have already sent your house code 3 times today. Please ask the estate office.", "house_code")
+            self.reply("We have already sent your home PIN 3 times today. Please ask the estate office.", "house_code")
             return
         home = self.s.get(Home, self.resident.home_id)
         first = home.house_code_enc is None
         code = shuttle.house_code(home)
-        self.result.changed = first  # a new code's hash must reach the rider phones
-        self.reply(
-            f"Your home's shuttle code is {code}. Anyone in your home can give it to the rider. Do not share it outside your home.",
-            "house_code",
-        )
+        self.result.changed = first  # a new PIN's hash must reach the gate phones
+        self.reply(self._pin_text(code), "house_code")
+
+    def new_home_pin(self) -> None:
+        """A new random PIN, sent to every registered number of the home: nobody chooses it, so a
+        forged request learns nothing, and the whole household sees that it changed."""
+        if not abuse.hit(self.s, abuse.Limit("new-pin", 2, timedelta(days=1)), str(self.resident.home_id)):
+            self.reply("Your home PIN has already been changed twice today. Please ask the estate office.", "house_code")
+            return
+        home = self.s.get(Home, self.resident.home_id)
+        code = shuttle.set_house_code(home)
+        text_ = f"{self.resident.name} asked for a new home PIN. " + self._pin_text(code) + " The old PIN no longer works."
+        for n in trust._home_numbers(self.s, home.id):
+            messaging.queue(self.s, self.estate.id, n, "sms", "house_code", text_)
+        self.result.changed = True
+
+    def dispute(self) -> None:
+        e = trust.dispute(self.s, self.estate, self.resident)
+        if e is None:
+            self.reply("There is no unchecked guest for your home in the last day to answer NO to.", "dispute_noted")
+            return
+        self.reply(f"Thank you. The estate's security has been told that {e.guest_name} was not expected.", "dispute_noted")
+        self.result.changed = True
 
 
 def _match(s: Session, e164: str) -> list[tuple[UUID, UUID, UUID]]:

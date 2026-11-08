@@ -163,11 +163,11 @@ def _pbkdf2_matches(stored: str, code: str) -> bool:
 def test_house_code_by_message_and_from_the_dashboard(owner, outbox, at):
     e = with_shuttle(owner)
     sms_in(PHONE, "HOUSE CODE")
-    code = re.search(r"shuttle code is (\d{4})", bodies(outbox)[-1]).group(1)
+    code = re.search(r"home PIN is (\d{4})", bodies(outbox)[-1]).group(1)
     home = next(h for h in state(e)["homes"] if h["id"] == e.home_id)
     assert _pbkdf2_matches(home["house_code_hash"], code)
     sms_in(PHONE, "house code")
-    assert f"shuttle code is {code}" in bodies(outbox)[-1]  # the same code until it is changed
+    assert f"home PIN is {code}" in bodies(outbox)[-1]  # the same code until it is changed
 
     fresh = client.post(f"/v1/admin/homes/{e.home_id}/house-code", headers=e.admin).json()["code"]
     home = next(h for h in state(e)["homes"] if h["id"] == e.home_id)

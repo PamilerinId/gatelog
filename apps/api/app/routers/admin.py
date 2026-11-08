@@ -823,6 +823,7 @@ def list_entries(
                 "id": e.id, "at": e.at, "guest_name": e.guest_name, "address": homes.get(e.home_id), "method": e.method,
                 "gate": gates.get(e.gate_id), "guard": guards.get(e.guard_id), "note": e.note, "plate": e.plate,
                 "decided_by": guards.get(e.decided_by), "reason": e.reason, "shift_id": e.shift_id,
+                "trust": e.trust, "caller": e.caller_masked, "disputed_at": e.disputed_at,
                 "exit_at": exits[e.id].at if e.id in exits else None, "exit_method": exits[e.id].method if e.id in exits else None,
             }
             for e in rows
