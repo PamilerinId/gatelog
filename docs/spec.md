@@ -1,6 +1,6 @@
 # Gatelog Product Spec v1.0
 
-Oct 11, 2026 · @Pamilerin Idowu. Revised 4 November 2026: dues ledger in Phase 1, one Phase 1 row, the CSO role on the gate phone, guard PIN and selfie at shift start. Revised 8 November 2026: estate shuttle and the estate map.
+Oct 11, 2026 · @Pamilerin Idowu. Revised 4 November 2026: dues ledger in Phase 1, one Phase 1 row, the CSO role on the gate phone, guard PIN and selfie at shift start. Revised 8 November 2026: estate shuttle and the estate map; then the design handoff (`docs/gatelog-handoff/`) merged in: trust levels and one home PIN, satellite map (Google in production), voice clips for visitor names (uploaded encrypted, deleted after 7 days), the gate phone UX rules in `CLAUDE.md`.
 
 This file is the working copy the code is built from. Change it in the same commit as the code that changes the behaviour.
 
@@ -165,7 +165,7 @@ Riders see the queue on their phone, oldest and soonest first, and take a ride w
 **Who rode: card or house code.** At pickup (or at drop-off for a delivery) the rider records who it was for:
 
 - **Estate card:** each resident can have an NFC tap card, tapped on the rider's phone. It works offline and suits elderly residents. Cards are issued on a gate phone in the CSO view (tap the card, pick the resident) and revoked in the dashboard. The card's ID is not secret, so a card identifies, it does not authorise payment.
-- **House code:** a 4-digit code per home, known to its household. Gatelog sends it to a registered number on request (HOUSE CODE); the admin can change it. The phone checks it offline against a slow hash, like a guard PIN.
+- **Home PIN:** the home's 4-digit PIN, the same one used for phone calls to the gate (see trust levels). Gatelog sends it to a registered number on request (HOUSE CODE); the household or the admin can change it. The phone checks it offline against a slow hash, like a guard PIN.
 - **Guard or rider:** for a guest or delivery run booked at the gate, or when the resident has neither, the rider records it as vouched by the guard or by themselves.
 
 **Live position.** A rider phone reports its position every 15 seconds while the rider's shift is open, and never outside a shift. Positions show on the estate map and are kept 7 days (for disputes and incidents), then deleted. Riders consent to this with the selfie consent at onboarding.
@@ -177,7 +177,7 @@ Riders see the queue on their phone, oldest and soonest first, and take a ride w
 The dashboard is drawn over a live map of the estate, so the Exco and the CSO see the estate as it is right now, not as tables.
 
 - **Bound to the estate.** The admin draws the estate's boundary once and drops pins for each gate and estate place. The map is locked to that boundary: it cannot be panned or zoomed out past the estate.
-- **Map data.** OpenStreetMap, from an extract of the estate's area that Gatelog hosts, drawn with MapLibre. No per-view map fees and no reliance on the public OpenStreetMap tile servers, whose policy does not allow this use. Attribution to OpenStreetMap contributors is always shown.
+- **Map data.** Satellite imagery, drawn with MapLibre, as in the design handoff. Production uses Google satellite imagery with the view locked to the estate (decided 8 November 2026); development uses Esri World Imagery, which is for prototypes only. The provider sits behind one switch, and the imagery's attribution is always shown.
 - **What is on it.** Each gate (who is on duty, when its phone last synced, quiet phones in red), the shuttles moving (rider, motorcycle, current ride), rides waiting for pickup (and for how long), estate places. SOS alerts join in Phase 2.
 - **Day and night.** The map and the dashboard switch to a night style between sunset and sunrise at the estate's location, and back at sunrise.
 - **Live.** The overview refreshes every 10 seconds. Other pages keep the map as a still background behind their tables, so tables stay readable.
@@ -241,6 +241,20 @@ Residents who prefer to phone keep phoning; Gatelog makes the call auditable ins
 - Callback confirmation is logged with time, number dialled (masked to last 4 digits in logs) and guard ID. No call audio is recorded in Phase 1.
 - A resident can set **Callback required for all guests** (useful for a parent whose children worry about scams at the gate).
 - If the callback fails (no answer twice), the guest is not admitted on phone authority; the guard follows the estate's walk-in policy, which may mean asking the CSO, and the decision is logged.
+
+**Calls from unregistered numbers: trust levels, not a ban.** Merged from the design handoff, 8 November 2026. Estates already admit guests on a call from any number if the caller describes themselves well enough. Gatelog keeps that working and records how well each entry was verified.
+
+| Trust level | How it is reached | Recorded as |
+| --- | --- | --- |
+| Verified | Guest gives a code, or the guard calls back a registered number for the home and the resident confirms | `verified` |
+| PIN-verified | Caller from any number says the home's 4-digit home PIN | `pin_verified` |
+| Description only | The CSO or supervisor decides on the caller's description, as today (`walk_in_admitted`) | `unverified`, with who admitted and the reason given |
+
+- **The home is told about every description-only entry.** All registered numbers for the home get an SMS at once: "A guest for 14B was admitted at Atiba gate, 16:06, after a call from 0803•••1234. Not you? Reply NO." A NO alerts the CSO immediately and is logged against the entry. These messages are never billed against the SMS allowance.
+- **One home PIN** (decided 8 November 2026): the same 4 digits for phone calls to the gate and for the estate shuttle (it replaces the shuttle's separate house code). Set at onboarding, changeable by the household or the Exco, stored only as a slow hash, never shown to guards (the gate phone checks it offline), 3 wrong tries per call, and the home is alerted after any wrong try. Elderly residents get a printed card. Guard PINs stay 6 digits: a stolen gate phone holds their hashes, so the extra digits matter.
+- **New numbers.** When a resident calls from a new number and confirms on callback, the guard can offer to register it; an existing number for the home must reply YES first.
+- **Exco view.** Share of phone-announced entries at each trust level, by gate and by guard, plus every NO reply.
+- **Kill criteria (8 weeks into a pilot).** More than 20% of phone-announced entries still description-only → push PIN adoption with the Exco. Any confirmed NO reply that shows real abuse → propose to the Exco that description-only entries need the CSO's approval at every gate.
 
 ## SOS alert
 

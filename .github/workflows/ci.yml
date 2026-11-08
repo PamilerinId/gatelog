@@ -1,0 +1,85 @@
+# Every push and pull request: the API tests (including tenant isolation, which blocks merge),
+# the gate phone's analyzer and tests, and the dashboard's type check and build.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API tests (tenant isolation blocks merge)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gatelog_owner
+          POSTGRES_PASSWORD: gatelog_owner
+          POSTGRES_DB: gatelog
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gatelog_owner"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the app role and test database
+        env:
+          PGPASSWORD: gatelog_owner
+        run: psql -h localhost -p 54329 -U gatelog_owner -d gatelog -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Tenant isolation
+        run: python -m pytest -q tests/test_isolation.py
+      - name: Everything else
+        run: python -m pytest -q --ignore=tests/test_isolation.py
+
+  guard:
+    name: Gate phone (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/guard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.7"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  web:
+    name: Dashboard and landing page
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build

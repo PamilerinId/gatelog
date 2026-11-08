@@ -153,7 +153,9 @@ def get_batch(batch_id: UUID, staff: Staff = Depends(admin)) -> dict:
 def discard(batch_id: UUID, staff: Staff = Depends(admin)) -> dict:
     with db.session(staff.estate_id) as s:
         b = s.get(ImportBatch, batch_id)
-        if b is None or b.status != "staged":
+        if b is None:
+            raise HTTPException(404, "no such import")
+        if b.status != "staged":
             raise HTTPException(409, "only a staged import can be discarded")
         b.status = "discarded"
         b.rows = {"summary": b.rows.get("summary", {})}  # drop the staged numbers
@@ -164,7 +166,9 @@ def discard(batch_id: UUID, staff: Staff = Depends(admin)) -> dict:
 def commit(batch_id: UUID, bg: BackgroundTasks, staff: Staff = Depends(admin)) -> dict:
     with db.session(staff.estate_id) as s:
         b = s.get(ImportBatch, batch_id, with_for_update=True)
-        if b is None or b.status != "staged":
+        if b is None:
+            raise HTTPException(404, "no such import")
+        if b.status != "staged":
             raise HTTPException(409, "only a staged import can be committed")
         zones = {z.name.lower(): z for z in s.scalars(select(Zone))}
         streets = {(st.zone_id, st.name.lower()): st for st in s.scalars(select(Street))}
