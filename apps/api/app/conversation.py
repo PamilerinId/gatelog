@@ -24,7 +24,7 @@ from datetime import timedelta
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from . import abuse, announce, codes, db, directory, messaging, phones, shuttle, stay, trust, visits
+from . import abuse, announce, codes, db, directory, messaging, numbers, phones, shuttle, stay, trust, visits
 from .estate_settings import EstateSettings
 from .models import Conversation, Estate, Home, OverstayNudge, PhoneNumber, Resident, Ride, Visit
 
@@ -46,6 +46,7 @@ _CANCEL_RIDE = re.compile(r"^\s*cancel\s+(?:my\s+|the\s+)?(?:ride|shuttle)\b", r
 _HOUSE_CODE = re.compile(r"^\s*(?:house\s*code|home\s*pin|pin)\s*[.!?]?\s*$", re.I)
 _NEW_PIN = re.compile(r"^\s*new\s*(?:home\s*)?(?:pin|house\s*code)\s*[.!?]?\s*$", re.I)
 _NO = re.compile(r"^\s*no\s*[.!]?\s*$", re.I)
+_YES = re.compile(r"^\s*yes\s*[.!]?\s*$", re.I)
 NO_SHUTTLE = "Your estate does not run a shuttle on Gatelog."
 _LEFT = re.compile(r"^\s*(2|left|gone|already left|he left|she left|they left)\b", re.I)
 _STAYING = re.compile(r"^\s*(1|staying|still here|yes)\b[\s,.:-]*", re.I)
@@ -71,6 +72,10 @@ class Turn:
         # Replies go back on the channel the resident used.
         messaging.queue(self.s, self.estate.id, self.number, self.channel, kind, body, params)
 
+    def _awaiting(self) -> str | None:
+        c = self.s.scalars(select(Conversation).where(Conversation.resident_id == self.resident.id)).first()
+        return c.awaiting if c else None
+
     def conversation(self) -> Conversation:
         c = self.s.scalars(select(Conversation).where(Conversation.resident_id == self.resident.id)).first()
         if c is None:
@@ -85,6 +90,9 @@ class Turn:
             self.sos_not_live()
         elif _NUMBERS.match(body):
             self.reply(directory.as_text(directory.top_five(self.s)), "numbers")
+        elif (_YES.match(body) or _NO.match(body)) and self._awaiting() == "number_offer":
+            self.reply(numbers.answer(self.s, self.estate, self.resident, self.conversation(), bool(_YES.match(body))), "number_answer")
+            self.result.changed = True
         elif _CANCEL_RIDE.match(body):
             self.cancel_ride()
         elif _CANCEL.match(body):

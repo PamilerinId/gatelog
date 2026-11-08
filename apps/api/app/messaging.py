@@ -44,7 +44,7 @@ TEMPLATES: dict[str, tuple[str, tuple[str, ...]]] = {
 # hesitates to raise an alarm or look up an emergency number.
 # Safety alerts to a home (an unchecked entry, a wrong home PIN, a disputed entry) too: nobody
 # should weigh the cost of telling a home that a stranger was let in for them.
-UNBILLED_KINDS = frozenset({"sos_not_live", "numbers", "unverified_entry", "wrong_pin", "entry_disputed"})
+UNBILLED_KINDS = frozenset({"sos_not_live", "numbers", "unverified_entry", "wrong_pin", "entry_disputed", "number_offer", "number_added"})
 UNBILLED_PREFIXES = ("sos",)
 
 
@@ -65,6 +65,7 @@ PURPOSES = {
     "ride_booked": "Shuttle", "ride_question": "Shuttle", "ride_cancelled": "Shuttle", "ride_on_way": "Shuttle",
     "parcel_on_way": "Shuttle", "house_code": "Home PIN", "dispute_noted": "Gate safety alerts",
     "unverified_entry": "Gate safety alerts", "wrong_pin": "Gate safety alerts", "entry_disputed": "Gate safety alerts",
+    "number_offer": "Gate safety alerts", "number_added": "Gate safety alerts", "number_answer": "Gate safety alerts",
 }
 
 
@@ -182,7 +183,7 @@ def channel_for(estate: Estate, contact_pref: str) -> str:
 def primary_number(db_: Session, resident_id: UUID) -> PhoneNumber | None:
     return db_.scalars(
         select(PhoneNumber)
-        .where(PhoneNumber.resident_id == resident_id)
+        .where(PhoneNumber.resident_id == resident_id, PhoneNumber.pending_until.is_(None))
         .order_by(PhoneNumber.is_primary.desc(), PhoneNumber.created_at)
         .limit(1)
     ).first()

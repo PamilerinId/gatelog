@@ -2,6 +2,17 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 8 November 2026: step 2b, a resident's new number, with the home's YES
+
+- **Offer from the gate:** after a callback confirms a resident who rang from an unknown number, the gate phone can offer to register it (`number_offers` sync record).
+- **Pending until the home agrees:** the number waits in `phone_numbers` with `pending_until` (full numbers still live only there), and the home's registered number is asked to reply YES or NO.
+- **While pending it is invisible:**
+  - inbound messages don't route to the home (migration 0006 changes `gatelog_lookup_phone`);
+  - callbacks can't use it;
+  - it isn't on the gate phone or in home alerts.
+- **YES** activates it (audited as the resident's action) and welcomes the new number. **NO** deletes it. **No answer within 48 hours** expires it.
+- **Limits:** the 3-numbers-per-home limit and the duplicate check apply, with a pending number counting towards the 3. The consent messages are never billed.
+
 ## 8 November 2026: step 2a, trust levels and the second pair of eyes
 
 - **Trust on every admitted entry:** `verified` (code, callback), `pin_verified` (the new entry method `pin_confirmed`, or a visit announced with the home PIN), `unverified` (walk-in on the CSO's decision, or an inbound call alone). Migration 0005 backfills trust on existing entries.
@@ -15,7 +26,7 @@ One short note per build step, newest first. The product rules are in `docs/spec
 - **Home PIN checks:** every check from a phone is an append-only `pin_checks` record, and a wrong try texts the home (at most 5 alerts an hour per home).
 - **Committee report:** trust split for admitted and phone entries, by gate and by guard, plus disputes. The gate log and the Excel export show trust, the caller's masked number and disputes.
 - **Fixed:** the usage report now decides "billed" per message kind, the same rule the allowance uses, instead of a fixed list of purposes.
-- **Not yet (step 2b):** registering a resident's new number after a confirmed callback.
+
 
 ## 8 November 2026: step 1 closed, tenant isolation enforced in CI
 

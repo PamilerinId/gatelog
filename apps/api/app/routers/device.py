@@ -35,7 +35,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .. import abuse, clock, db, directory, messaging, push, shifts, shuttle, storage, trust, visits
+from .. import abuse, clock, db, directory, messaging, numbers, push, shifts, shuttle, storage, trust, visits
 from .. import stay as stay_mod
 from ..auth import DeviceAuth, current_device, new_device_token, sha256
 from ..estate_settings import EstateSettings
@@ -44,6 +44,7 @@ from ..models import (
     RIDE_OPEN_STATES,
     Callback,
     Device,
+    NumberOffer,
     PinCheck,
     Place,
     Position,
@@ -147,7 +148,7 @@ def build_state(s: Session, dev: DeviceAuth) -> dict:
 
     residents_by_home: dict[UUID, list[dict]] = {}
     numbers_by_resident: dict[UUID, list[dict]] = {}
-    for n in s.scalars(select(PhoneNumber).where(PhoneNumber.resident_id.is_not(None))):
+    for n in s.scalars(numbers.active(select(PhoneNumber).where(PhoneNumber.resident_id.is_not(None)))):
         # The gate dials these for callbacks, possibly with no data connection, so the phone
         # holds them, in its encrypted store. Nothing else outside the database ever does.
         numbers_by_resident.setdefault(n.resident_id, []).append({"id": str(n.id), "e164": decrypt(n.e164_enc), "last4": n.last4, "is_primary": n.is_primary})
@@ -424,7 +425,20 @@ class CardIn(BaseModel):
     at: datetime
 
 
+class NumberOfferIn(BaseModel):
+    """The guard offers to register the number a resident just called from (after the callback
+    to their registered number confirmed it was them). The home must reply YES."""
+
+    id: UUID
+    resident_id: UUID
+    number: str = Field(min_length=7, max_length=20)
+    guard_id: UUID | None = None
+    shift_id: UUID | None = None
+    at: datetime
+
+
 class SyncIn(BaseModel):
+    number_offers: list[NumberOfferIn] = []
     pin_checks: list[PinCheckIn] = []
     cards: list[CardIn] = []
     rides: list[RideIn] = []
@@ -490,7 +504,7 @@ class _Sync:
 
     def callback(self, c: CallbackIn) -> None:
         number = self.s.get(PhoneNumber, c.number_id)
-        if number is None or number.home_id != c.home_id:
+        if number is None or number.home_id != c.home_id or number.pending_until is not None:
             return self._reject(c.id, "number is not registered to that home")
         if not self._ours(Guard, c.guard_id) or not self._ours(Visit, c.visit_id) or not self._ours(Shift, c.shift_id):
             return self._reject(c.id, "unknown guard, visit or shift")
@@ -644,6 +658,20 @@ class _Sync:
         self.out.accepted.append(c.item_id)
 
 
+    def number_offer(self, o: NumberOfferIn) -> None:
+        if self._seen(NumberOffer, o.id):
+            self.out.duplicates.append(o.id)
+            return
+        resident = self.s.get(Resident, o.resident_id)
+        if resident is None or not resident.active or not self._ours(Guard, o.guard_id) or not self._ours(Shift, o.shift_id):
+            return self._reject(o.id, "unknown resident, guard or shift")
+        why = numbers.offer(self.s, self.estate, offer_id=o.id, resident=resident, raw=o.number, guard_id=o.guard_id,
+                            shift_id=o.shift_id, device_id=self.dev.id, at=self._at(o.at))
+        if why:
+            return self._reject(o.id, why)
+        self.s.flush()
+        self.out.accepted.append(o.id)
+
     def pin_check(self, c: PinCheckIn) -> None:
         if self._seen(PinCheck, c.id):
             self.out.duplicates.append(c.id)
@@ -743,6 +771,8 @@ def sync(body: SyncIn, bg: BackgroundTasks, dev: DeviceAuth = Depends(current_de
             run.shift(sh)
         for pc in body.pin_checks:
             run.pin_check(pc)
+        for no in body.number_offers:
+            run.number_offer(no)
         for c in body.cards:
             run.card(c)
         for r in body.rides:

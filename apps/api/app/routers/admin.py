@@ -284,7 +284,8 @@ def delete_home(home_id: UUID, staff: Staff = Depends(admin)) -> None:
 
 
 def _number_out(n: PhoneNumber) -> dict:
-    return {"id": n.id, "last4": n.last4, "masked": f"***{n.last4}", "is_primary": n.is_primary, "verified_at": n.verified_at}
+    return {"id": n.id, "last4": n.last4, "masked": f"***{n.last4}", "is_primary": n.is_primary, "verified_at": n.verified_at,
+            "pending": n.pending_until is not None}  # offered at the gate, waiting for the home's YES
 
 
 def _resident_out(s: Session, r: Resident) -> dict:
@@ -296,9 +297,11 @@ def _resident_out(s: Session, r: Resident) -> dict:
     }
 
 
-def add_number(s: Session, estate_id: UUID, actor: str, resident: Resident, raw: str, is_primary: bool = False) -> PhoneNumber:
+def add_number(s: Session, estate_id: UUID, actor: str, resident: Resident, raw: str, is_primary: bool = False,
+               pending_until=None) -> PhoneNumber:
     """Register a number to a resident. A home holds at most three (resident, spouse,
-    live-in carer); only these count for callbacks."""
+    live-in carer); only these count for callbacks. A pending number (offered at the gate)
+    counts towards the three but is used for nothing until the home confirms it."""
     try:
         e164 = phones.normalise(raw)
     except phones.InvalidPhone:
@@ -316,11 +319,11 @@ def add_number(s: Session, estate_id: UUID, actor: str, resident: Resident, raw:
             other.is_primary = False
     n = PhoneNumber(
         estate_id=estate_id, home_id=resident.home_id, resident_id=resident.id, e164_enc=phones.encrypt(e164), e164_index=idx,
-        last4=phones.last4(e164), is_primary=is_primary or not has_primary,
+        last4=phones.last4(e164), is_primary=pending_until is None and (is_primary or not has_primary), pending_until=pending_until,
     )
     s.add(n)
     s.flush()
-    audit.record(s, estate_id, actor, "create", n)
+    audit.record(s, estate_id, actor, "offer_number" if pending_until else "create", n)
     return n
 
 

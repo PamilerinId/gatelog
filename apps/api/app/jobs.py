@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import abuse, clock, db, email, messaging, shifts, shuttle, usage, visits
+from . import abuse, clock, db, email, messaging, numbers, shifts, shuttle, usage, visits
 from .estate_settings import EstateSettings
 from .models import Conversation, Entry, Estate, Exit, OverstayNudge, PhoneNumber, Resident, Rollup, RollupItem, StaffUser, Visit
 
@@ -161,6 +161,7 @@ def tick() -> dict[str, int]:
     abuse.sweep()
     totals |= shifts.housekeeping()
     totals |= shuttle.housekeeping()
+    totals |= numbers.housekeeping()
     return totals
 
 

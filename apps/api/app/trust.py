@@ -43,7 +43,8 @@ def entry_trust(method: str, visit: Visit | None) -> str | None:
 
 def _home_numbers(s: Session, home_id) -> list[PhoneNumber]:
     active = select(Resident.id).where(Resident.home_id == home_id, Resident.active.is_(True))
-    return s.scalars(select(PhoneNumber).where(PhoneNumber.home_id == home_id, PhoneNumber.resident_id.in_(active))).all()
+    return s.scalars(select(PhoneNumber).where(
+        PhoneNumber.home_id == home_id, PhoneNumber.resident_id.in_(active), PhoneNumber.pending_until.is_(None))).all()
 
 
 def _to_home(s: Session, estate: Estate, home_id, kind: str, body: str) -> int:

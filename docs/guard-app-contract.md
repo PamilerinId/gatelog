@@ -197,6 +197,14 @@ PIN-verified; `walk_in_admitted` and `phone_announced` are unverified.
   home at once: "Not you? Reply NO". A NO shows in the CSO view under `needs.disputed_today` and goes
   to the security head by SMS. Nothing changes on the gate phone's side.
 
+**A resident's new number.** When a resident rang the gate from a number not on file and then
+confirmed on the callback to their registered number, offer "Add this number for Mrs Adeyemi?"
+(Yes/No). Yes is a `number_offers` record: `{id, resident_id, number, guard_id, shift_id, at}`,
+where `number` is the full number the call came from. It is the only record that carries one;
+never log it. The home's registered number is asked to reply YES, and nothing else happens on
+the phone. Once the home says YES, the number appears in `/state` at the next pull. Rejected
+offers come back with the reason (already registered, three numbers already, nobody to ask).
+
 **`phone_announced`** (entry method) means admitted on the resident's inbound call alone, with no
 callback. The spec keeps it so the committee can see how often that happens; the app does not
 offer it, because an inbound caller ID is a hint, not proof.

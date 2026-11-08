@@ -44,6 +44,7 @@ ENTRY_METHODS = ("code", "phone_announced", "callback_confirmed", "pin_confirmed
 # How well an admitted entry was verified (spec: call-the-gate, trust levels).
 TRUST_LEVELS = ("verified", "pin_verified", "unverified")
 PIN_CHECK_CONTEXTS = ("gate", "shuttle")
+NUMBER_OFFER_STATES = ("asked", "added", "declined", "expired")
 EXIT_METHODS = ("code", "list_tap", "resident_confirmed", "rollup_closed")
 NUDGE_REPLIES = ("staying", "left", "none")
 STAFF_ROLES = ("admin", "committee", "security_head", "treasurer", "org_admin", "org_viewer", "ops")
@@ -239,6 +240,9 @@ class PhoneNumber(Base):
     last4: Mapped[str] = mapped_column(String(4))
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set while a number the gate offered to add waits for a YES from the home (48 hours). A
+    # pending number is invisible: no inbound messages, no callbacks, not on the gate phone.
+    pending_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()
 
 
@@ -672,6 +676,28 @@ class PinCheck(Base):
     synced_at: Mapped[datetime] = created()
 
 
+class NumberOffer(Base):
+    """A resident called the gate from a new number and confirmed on the callback; the guard
+    offered to register it. An existing number of the home must reply YES first. The number
+    itself waits in phone_numbers (pending), the only table that holds full numbers."""
+
+    __tablename__ = "number_offers"
+    __table_args__ = (_check("state", NUMBER_OFFER_STATES, "ck_number_offers_state"),)
+    id: Mapped[uuid.UUID] = pk()  # client-generated
+    estate_id: Mapped[uuid.UUID] = estate_fk()
+    home_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("homes.id", ondelete="CASCADE"))
+    resident_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("residents.id", ondelete="CASCADE"))
+    number_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("phone_numbers.id", ondelete="SET NULL"))
+    asked_number_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("phone_numbers.id", ondelete="SET NULL"))
+    last4: Mapped[str] = mapped_column(String(4))
+    state: Mapped[str] = mapped_column(String(8), default="asked")
+    guard_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("guards.id"))
+    shift_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shifts.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 # --- Estate shuttle ----------------------------------------------------------------------
 
 
@@ -796,6 +822,6 @@ TENANT_TABLES = [
     for t in (
         Zone, Street, Home, Resident, PhoneNumber, Gate, Guard, Shift, Vehicle, Device, Visit, Callback, Entry, Exit,
         OverstayNudge, Rollup, RollupItem, DirectoryReport, Conversation, MessageLog, ImportBatch, AuditEvent,
-        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck,
+        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck, NumberOffer,
     )
 ]
