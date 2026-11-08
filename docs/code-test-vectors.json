@@ -1,0 +1,113 @@
+{
+  "algorithm": "HMAC-SHA256 over message, RFC 4226 dynamic truncation, mod 10^6, zero-padded to 6 digits. Times are Unix seconds UTC; UUIDs lowercase hyphenated.",
+  "vectors": [
+    {
+      "key_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "home_id": "11111111-1111-4111-8111-111111111111",
+      "visit_id": "22222222-2222-4222-8222-222222222222",
+      "window_start": 1792566000,
+      "window_end": 1792573200,
+      "message": "gatelog-code-v1|11111111-1111-4111-8111-111111111111|22222222-2222-4222-8222-222222222222|1792566000|1792573200",
+      "code": "702308"
+    },
+    {
+      "key_hex": "6761746c6f672d746573742d6b65792d30303031",
+      "home_id": "3f2b8a51-0c4e-4d1a-9a8e-5b7c1d2e3f40",
+      "visit_id": "9d0e7c6b-5a49-4382-a716-2f5e4d3c2b1a",
+      "window_start": 1792540800,
+      "window_end": 1792616400,
+      "message": "gatelog-code-v1|3f2b8a51-0c4e-4d1a-9a8e-5b7c1d2e3f40|9d0e7c6b-5a49-4382-a716-2f5e4d3c2b1a|1792540800|1792616400",
+      "code": "347648"
+    },
+    {
+      "key_hex": "195a7cba074cf1123377d506c19d852bdff6d60dc5123dbd035765635c121653",
+      "home_id": "a0b1c2d3-e4f5-4061-8273-94a5b6c7d8e9",
+      "visit_id": "0f1e2d3c-4b5a-4968-8776-655443322110",
+      "window_start": 1793000000,
+      "window_end": 1793432000,
+      "message": "gatelog-code-v1|a0b1c2d3-e4f5-4061-8273-94a5b6c7d8e9|0f1e2d3c-4b5a-4968-8776-655443322110|1793000000|1793432000",
+      "code": "361905"
+    },
+    {
+      "key_hex": "2f5052c9fd15b19a18c584d01363568198613f0c34e84409ef7938709a159ec2",
+      "home_id": "6f207f8b-5dfe-1eeb-ac63-467930df5189",
+      "visit_id": "43a03299-a3c3-fed3-d8ce-7b820f3aca81",
+      "window_start": 1792551600,
+      "window_end": 1792558800,
+      "message": "gatelog-code-v1|6f207f8b-5dfe-1eeb-ac63-467930df5189|43a03299-a3c3-fed3-d8ce-7b820f3aca81|1792551600|1792558800",
+      "code": "177356"
+    },
+    {
+      "key_hex": "94091dd64a21ffe94214bc6d17deeb43873a5cf2f0a71b4b5caa9a5c81b6967d",
+      "home_id": "ce1b1e8c-e920-100d-134d-0212d3a8f53f",
+      "visit_id": "5ed3a3ff-8e5c-2997-9502-b9030e8518e0",
+      "window_start": 1792555200,
+      "window_end": 1792562400,
+      "message": "gatelog-code-v1|ce1b1e8c-e920-100d-134d-0212d3a8f53f|5ed3a3ff-8e5c-2997-9502-b9030e8518e0|1792555200|1792562400",
+      "code": "971877"
+    },
+    {
+      "key_hex": "88dbf612972c594a2c2f6dde493ef1c4cd27adba8c36e6ebd00b89ff143aba61",
+      "home_id": "77230e94-b5cd-88d5-1a87-2031531bfecd",
+      "visit_id": "4b6df019-46f4-919a-3f5a-f8c1f0f9c3c5",
+      "window_start": 1792558800,
+      "window_end": 1792566000,
+      "message": "gatelog-code-v1|77230e94-b5cd-88d5-1a87-2031531bfecd|4b6df019-46f4-919a-3f5a-f8c1f0f9c3c5|1792558800|1792566000",
+      "code": "632715"
+    },
+    {
+      "key_hex": "1d92ad4b6987fa0347cc5d2fb6cf9e47c83f4f6caeb3b5ef6f629730528921c3",
+      "home_id": "d8544ba1-b053-e413-68fa-915864c6ea1c",
+      "visit_id": "0af45c99-beb7-a9af-c919-2665c4a05cd3",
+      "window_start": 1792562400,
+      "window_end": 1792569600,
+      "message": "gatelog-code-v1|d8544ba1-b053-e413-68fa-915864c6ea1c|0af45c99-beb7-a9af-c919-2665c4a05cd3|1792562400|1792569600",
+      "code": "214232"
+    },
+    {
+      "key_hex": "fb848c99b9a43ec7866a23ea000c1939a168f5ff17314a0b88c7be711d7ef7d0",
+      "home_id": "f43b6183-f30d-3df3-92f5-551d68273425",
+      "visit_id": "e6dd7137-7633-7231-64ae-ea0750ddafa8",
+      "window_start": 1792566000,
+      "window_end": 1792573200,
+      "message": "gatelog-code-v1|f43b6183-f30d-3df3-92f5-551d68273425|e6dd7137-7633-7231-64ae-ea0750ddafa8|1792566000|1792573200",
+      "code": "796496"
+    },
+    {
+      "key_hex": "5a3df89da7bf23d71ec63f111d9171c3f05047380a17812f20248e63cfded4fb",
+      "home_id": "b9a858d0-8146-1507-bec6-a80f60030a30",
+      "visit_id": "d387afe0-fdfa-6957-d5cf-6a66b49b8458",
+      "window_start": 1792569600,
+      "window_end": 1792576800,
+      "message": "gatelog-code-v1|b9a858d0-8146-1507-bec6-a80f60030a30|d387afe0-fdfa-6957-d5cf-6a66b49b8458|1792569600|1792576800",
+      "code": "867697"
+    },
+    {
+      "key_hex": "c3c81c2b9a9ae9e358d68fc47dbc8596f19b420011e71c657d1616f14fb77917",
+      "home_id": "b54cebad-3f4a-471c-46b5-b39b73c948ad",
+      "visit_id": "c1f7e282-dbf6-e1e0-f008-5ef220fb1118",
+      "window_start": 1792573200,
+      "window_end": 1792580400,
+      "message": "gatelog-code-v1|b54cebad-3f4a-471c-46b5-b39b73c948ad|c1f7e282-dbf6-e1e0-f008-5ef220fb1118|1792573200|1792580400",
+      "code": "861248"
+    },
+    {
+      "key_hex": "4ae43fd8358484a65b03cff3b3f0ebe5478dea48398d24628f41429518e4bce0",
+      "home_id": "aa52598f-dd6b-42a1-2881-3b1b251447dd",
+      "visit_id": "18c4dc5b-ebb3-4de8-01bb-67fd18b39f61",
+      "window_start": 1792576800,
+      "window_end": 1792584000,
+      "message": "gatelog-code-v1|aa52598f-dd6b-42a1-2881-3b1b251447dd|18c4dc5b-ebb3-4de8-01bb-67fd18b39f61|1792576800|1792584000",
+      "code": "931000"
+    },
+    {
+      "key_hex": "13876d0627a48f198e5d5eeba044eaaece7545a112d872ef1fc7af768e4da77f",
+      "home_id": "7f01968c-c3ac-372c-e9ca-e8a05dae5a4d",
+      "visit_id": "f56f0edb-77f9-b851-0011-dc802169953c",
+      "window_start": 1792580400,
+      "window_end": 1792587600,
+      "message": "gatelog-code-v1|7f01968c-c3ac-372c-e9ca-e8a05dae5a4d|f56f0edb-77f9-b851-0011-dc802169953c|1792580400|1792587600",
+      "code": "900721"
+    }
+  ]
+}

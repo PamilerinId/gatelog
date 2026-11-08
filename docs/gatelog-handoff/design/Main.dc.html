@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gatelog Exco dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit}
+.pulse{animation:glpulse 1.8s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes glpulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(3.4)}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none;opacity:.35}}
+</style>
+</helmet>
+<div style="position: relative; min-height: 900px; overflow: hidden; background: {{t.bg}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif;">
+
+<sc-if value="{{night}}" hint-placeholder-val="{{ true }}">
+<img src="/_blob/9d5a28f0f563fa589b54c6bfca5604a7" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+</sc-if>
+<sc-if value="{{isDay}}" hint-placeholder-val="{{ false }}">
+<img src="/_blob/1a8095a5f353e1ab2c96165d54058764" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+</sc-if>
+
+<svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block;" role="img" aria-label="Satellite map of the estate with gates, guards and an active SOS (sample data)">
+<path d="{{gridPath}}" stroke="{{t.grid}}" stroke-width="1" fill="none"></path>
+<polygon points="{{poly}}" fill="{{t.inside}}" stroke="{{t.boundary}}" stroke-width="1.5" stroke-dasharray="6 6"></polygon>
+
+<g font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.6" fill="{{t.label}}" stroke="{{t.halo}}" stroke-width="3" paint-order="stroke">
+<text x="10" y="229">7.4399°N</text>
+<text x="10" y="454">7.4387°N</text>
+<text x="10" y="679">7.4375°N</text>
+<text x="364" y="890">3.9087°E</text>
+<text x="724" y="890">3.9106°E</text>
+<text x="1084" y="890">3.9126°E</text>
+<text x="442" y="46" letter-spacing="1.4">ESTATE BOUNDARY · BOUNDS LOCKED</text>
+</g>
+
+<g fill="none" stroke="{{t.entry}}" stroke-width="1.5">
+<circle cx="600" cy="150" r="5"></circle>
+<circle cx="820" cy="180" r="5"></circle>
+<circle cx="870" cy="380" r="5"></circle>
+<circle cx="500" cy="260" r="5"></circle>
+</g>
+
+<g>
+<circle class="pulse" cx="690" cy="250" r="9" fill="none" stroke="{{t.alert}}" stroke-width="2"></circle>
+<circle cx="690" cy="250" r="6" fill="{{t.alert}}" stroke="{{t.halo}}" stroke-width="1.5"></circle>
+<rect x="706" y="224" width="196" height="40" rx="10" fill="{{t.panel}}" stroke="{{t.alert}}" stroke-width="1"></rect>
+<text x="716" y="240" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" letter-spacing="0.8" fill="{{t.alert}}">SOS · 14B ADENIYI CL</text>
+<text x="716" y="256" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.6" fill="{{t.text}}">ACK MUSA A. · 0:42</text>
+</g>
+
+<g>
+<circle cx="536" cy="436" r="12" fill="none" stroke="{{t.gate}}" stroke-width="1" opacity="0.6"></circle>
+<circle cx="536" cy="436" r="6" fill="{{t.gate}}" stroke="{{t.halo}}" stroke-width="1.5"></circle>
+<circle cx="550" cy="424" r="4" fill="{{t.guard}}" stroke="{{t.halo}}" stroke-width="1"></circle>
+<rect x="380" y="454" width="146" height="40" rx="10" fill="{{t.panel}}" stroke="{{t.line}}" stroke-width="1"></rect>
+<text x="390" y="470" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" letter-spacing="0.8" fill="{{t.text}}">MAIN GATE</text>
+<text x="390" y="486" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.6" fill="{{t.muted}}">ONLINE · MUSA A.</text>
+</g>
+<g>
+<circle cx="440" cy="76" r="12" fill="none" stroke="{{t.gate}}" stroke-width="1" opacity="0.6"></circle>
+<circle cx="440" cy="76" r="6" fill="{{t.gate}}" stroke="{{t.halo}}" stroke-width="1.5"></circle>
+<circle cx="454" cy="88" r="4" fill="{{t.guard}}" stroke="{{t.halo}}" stroke-width="1"></circle>
+<rect x="290" y="84" width="140" height="40" rx="10" fill="{{t.panel}}" stroke="{{t.line}}" stroke-width="1"></rect>
+<text x="300" y="100" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" letter-spacing="0.8" fill="{{t.text}}">ATIBA GATE</text>
+<text x="300" y="116" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.6" fill="{{t.muted}}">ONLINE · CHIDI O.</text>
+</g>
+<g>
+<circle cx="1004" cy="472" r="12" fill="none" stroke="{{t.warn}}" stroke-width="1" opacity="0.7"></circle>
+<circle cx="1004" cy="472" r="6" fill="{{t.warn}}" stroke="{{t.halo}}" stroke-width="1.5"></circle>
+<rect x="944" y="494" width="166" height="40" rx="10" fill="{{t.panel}}" stroke="{{t.line}}" stroke-width="1"></rect>
+<text x="954" y="510" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" letter-spacing="0.8" fill="{{t.text}}">KUNLE ABASS GATE</text>
+<text x="954" y="526" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.6" fill="{{t.warn}}">OFFLINE · SYNC 4 MIN</text>
+</g>
+<g>
+<circle cx="760" cy="402" r="10" fill="none" stroke="{{t.guard}}" stroke-width="1" opacity="0.6"></circle>
+<circle cx="760" cy="402" r="5" fill="{{t.guard}}" stroke="{{t.halo}}" stroke-width="1.5"></circle>
+<text x="774" y="406" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="0.8" fill="{{t.text}}" stroke="{{t.halo}}" stroke-width="3" paint-order="stroke">PATROL · RADIO 2</text>
+</g>
+</svg>
+
+<div style="position: relative; display: flex; flex-direction: column; gap: 16px; padding: 16px; box-sizing: border-box; min-height: 900px;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 10px 16px; background: {{t.panel}}; border: 1px solid {{t.line}}; border-radius: 20px; box-shadow: {{t.shadow}}; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.4"></circle><circle cx="7" cy="7" r="2.2" fill="currentColor"></circle></svg>
+<span style="font-weight: 600; letter-spacing: 0.2em;">GATELOG</span>
+<span style="color: {{t.muted}};">/ SKA RESIDENTS · IBADAN</span>
+</div>
+<div style="color: {{t.muted}}; flex: 1 1 200px;">7.4387°N 3.9106°E · 3 GATES · 214 HOMES</div>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+<span style="padding: 4px 10px; border-radius: 999px; border: 1px solid {{t.line}}; color: {{t.muted}};">SAMPLE DATA</span>
+<span>16:42 WAT</span>
+<span style="color: {{t.muted}};">{{modeNote}}</span>
+<button type="button" onClick="{{toggle}}" aria-label="Switch between day and night map" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; background: {{t.btnBg}}; color: {{t.text}}; border: 1px solid {{t.line}}; border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; cursor: pointer;">
+<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"></circle><path d="M7 1.5 A5.5 5.5 0 0 1 7 12.5 Z" fill="currentColor"></path></svg>
+{{modeLabel}}
+</button>
+</div>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; flex: 1 1 auto;">
+
+<section aria-label="Estate status" style="flex: 0 1 272px; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: {{t.panel}}; border: 1px solid {{t.line}}; border-radius: 20px; box-shadow: {{t.shadow}}; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%);">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; color: {{t.muted}};">STATUS · TODAY</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px;">
+<div><div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 500;">37</div><div style="font-size: 12px; color: {{t.muted}};">Inside now</div></div>
+<div><div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 500;">214</div><div style="font-size: 12px; color: {{t.muted}};">Entries</div></div>
+<div><div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 500;">82%</div><div style="font-size: 12px; color: {{t.muted}};">Exits confirmed</div></div>
+<div><div style="font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 500; color: {{t.warnText}};">3</div><div style="font-size: 12px; color: {{t.muted}};">Overstays</div></div>
+</div>
+<div style="height: 1px; background: {{t.line}};"></div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; color: {{t.muted}};">PHONE ENTRIES BY TRUST</div>
+<div style="display: flex; height: 6px; gap: 2px; border-radius: 999px; overflow: hidden;">
+<div style="flex: 71 1 0; background: {{t.text}};"></div>
+<div style="flex: 18 1 0; background: {{t.muted}};"></div>
+<div style="flex: 11 1 0; background: {{t.warn}};"></div>
+</div>
+<div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{t.muted}};"><span>VERIFIED 71</span><span>PIN 18</span><span style="color: {{t.warnText}};">UNVERIFIED 11</span></div>
+</div>
+<div style="height: 1px; background: {{t.line}};"></div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; color: {{t.muted}};">GATES</div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span>Main</span><span style="display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px;"><svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="{{t.gate}}"></circle></svg>ONLINE</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span>Atiba</span><span style="display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px;"><svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="{{t.gate}}"></circle></svg>ONLINE</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span>Kunle Abass</span><span style="display: inline-flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.warnText}};"><svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="{{t.warn}}"></circle></svg>OFFLINE 4M</span></div>
+</div>
+</section>
+
+<div style="flex: 999 1 320px; min-height: 120px;"></div>
+
+<section aria-label="Live activity" style="flex: 0 1 360px; display: flex; flex-direction: column; padding: 16px 16px 8px; background: {{t.panel}}; border: 1px solid {{t.line}}; border-radius: 20px; box-shadow: {{t.shadow}}; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%);">
+<div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; color: {{t.muted}};"><span>LIVE</span><span style="display: inline-flex; align-items: center; gap: 6px; color: {{t.text}};"><svg width="6" height="6" viewBox="0 0 6 6" aria-hidden="true"><circle cx="3" cy="3" r="3" fill="{{t.alert}}"></circle></svg>STREAMING</span></div>
+
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">16:41</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: {{t.alertText}};">SOS · ACKNOWLEDGED</span><span style="font-size: 13px;">14B Adeniyi Close · Musa A. in 0:42</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">16:38</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em;">ENTRY · CODE</span><span style="font-size: 13px;">Grocery delivery → 7 Oyelaran Street · Main</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">16:31</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em;">ENTRY · PIN</span><span style="font-size: 13px;">Guest → C4 Ogunlade Court · Atiba</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">16:22</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: {{t.warnText}};">ENTRY · UNVERIFIED</span><span style="font-size: 13px;">Guest → 3 Bakare Avenue · Kunle Abass</span><span style="font-size: 12px; color: {{t.muted}};">Supervisor approved on description · home alerted</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">16:06</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em;">ENTRY · CALLBACK</span><span style="font-size: 13px;">Tunde Bakare → 14B Adeniyi Close · Atiba</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-top: 1px solid {{t.line}};">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}};">15:52</span>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: {{t.muted}};">EXIT</span><span style="font-size: 13px;">Plumber ← C4 Ogunlade Court · Main</span></div>
+</div>
+<a href="#" style="display: block; padding: 12px 0 8px; border-top: 1px solid {{t.line}}; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-decoration: none;">OPEN FULL LOG →</a>
+</section>
+</div>
+
+<footer style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 14px; background: {{t.panel}}; border: 1px solid {{t.line}}; border-radius: 14px; box-shadow: {{t.shadow}}; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: {{t.muted}};">
+<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="{{t.gate}}"></circle></svg>GATE</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="{{t.warn}}"></circle></svg>GATE OFFLINE</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="{{t.guard}}"></circle></svg>GUARD</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="{{t.alert}}"></circle></svg>SOS</span>
+<span style="display: inline-flex; align-items: center; gap: 6px;"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="{{t.entry}}" stroke-width="1.5"></circle></svg>RECENT ENTRY</span>
+</div>
+<span style="padding: 4px 10px; border-radius: 999px; background: {{t.panel}}; font-size: 11px; color: {{t.muted}};">Imagery: Esri, Maxar, Earthstar Geographics · sample location</span>
+</footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startMode":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.state || {};
+    const night = s.night !== undefined ? s.night : (this.props.startMode ?? 'night') === 'night';
+    const N = { bg: '#111111', text: '#F4F4F2', muted: '#A8A8A6', label: '#D6D6D4', halo: '#111111', panel: 'rgba(17,17,17,0.76)', line: 'rgba(244,244,242,0.10)', shadow: '0 18px 50px rgba(0,0,0,0.5)', grid: 'rgba(244,244,242,0.06)', inside: 'rgba(244,244,242,0.03)', boundary: 'rgba(244,244,242,0.85)', gate: '#F4F4F2', guard: '#5AA9FF', alert: '#FF5A4E', alertText: '#FF5A4E', warn: '#F5C542', warnText: '#F5C542', entry: '#F4F4F2', btnBg: 'rgba(244,244,242,0.06)' };
+    const D = { bg: '#F2F2F0', text: '#141414', muted: '#4A4A48', label: '#141414', halo: '#FFFFFF', panel: 'rgba(250,250,248,0.84)', line: 'rgba(20,20,20,0.10)', shadow: '0 18px 50px rgba(20,20,20,0.14)', grid: 'rgba(255,255,255,0.18)', inside: 'rgba(255,255,255,0.06)', boundary: '#FFFFFF', gate: '#141414', guard: '#1D63C9', alert: '#E5372B', alertText: '#B42318', warn: '#F5C542', warnText: '#8A5A00', entry: '#FFFFFF', btnBg: 'rgba(20,20,20,0.04)' };
+    const t = night ? N : D;
+    let g = '';
+    for (let x = 0; x <= 1440; x += 120) g += 'M' + x + ' 0V900';
+    for (let y = 0; y <= 900; y += 120) g += 'M0 ' + y + 'H1440';
+    return {
+      t,
+      night,
+      isDay: !night,
+      modeLabel: night ? 'NIGHT' : 'DAY',
+      modeNote: night ? 'AUTO · SUNRISE 06:38' : 'AUTO · SUNSET 18:41',
+      toggle: () => this.setState({ night: !night }),
+      poly: '432,62 952,48 962,232 1046,420 1012,522 562,524 524,446 420,300',
+      gridPath: g
+    };
+  }
+}
+</script>
+</body>
+</html>

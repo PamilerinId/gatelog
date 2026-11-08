@@ -6,9 +6,18 @@ every entry.
 
 ```
 apps/
-  web/   Next.js 16 (App Router, TypeScript). Landing page now; estate dashboard next.
-  api/   FastAPI. Demo-request intake now; the domain model next.
+  web/    Next.js 16 (App Router, TypeScript). Landing page and the estate dashboard.
+  api/    FastAPI on Postgres. Codes, visits, the gate log, messaging, rollups, directory.
+  guard/  Flutter (Android). The gate phone app; works offline.
+docs/
+  guard-app-contract.md   what the gate phone and the API agree on
+  code-test-vectors.json  pins the six-digit code algorithm for Python and Dart
+  whatsapp-templates.md   templates to submit to Meta
 ```
+
+Spec: Gatelog Product Spec v1.0 (Oct 2026). Phase 1 is built here: core gate flow with
+offline sync, visit length with exits and the nightly rollup, call-the-gate (callback flows A
+and B), the emergency directory, and the admin dashboard. SOS (Phase 2) is not.
 
 ## Run it
 
@@ -18,12 +27,46 @@ cd apps/web
 npm install
 npm run dev            # http://localhost:3000
 
-# api
+# api (Postgres in Docker on port 54329)
+docker compose up -d
 cd apps/api
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload --port 8000
-pytest
+python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # bin/ on macOS/Linux
+.venv/Scripts/alembic upgrade head
+.venv/Scripts/uvicorn app.main:app --reload --port 8000                      # /docs for the API
+.venv/Scripts/python -m pytest                                               # uses the gatelog_test database
 ```
+
+## How the API fits together
+
+- **Tenancy.** Every tenant table has `estate_id` and a Row-Level Security policy. The API
+  connects as `gatelog_app`, which owns nothing, so the policies always apply; migrations run
+  as the owner. Each request sets `app.estate_id` for its transaction. Two narrow
+  `SECURITY DEFINER` functions answer the only cross-tenant questions: which resident owns
+  this phone number (inbound messages), and which device has this pairing code.
+- **Codes.** `HMAC-SHA256(estate key, home|visit|window)`, truncated to six digits
+  (`app/codes.py`). The gate phone holds the key and the expected visits and recomputes codes
+  offline. Revoking a lost phone moves the estate to a new key version.
+- **Offline sync.** Entries, exits, callbacks and phone-announced visits carry client UUIDs;
+  the server inserts `ON CONFLICT DO NOTHING` and runs side effects only for new rows.
+- **Messages.** Queued in an outbox in the same transaction as the change, sent after commit,
+  retried by the scheduler. Full numbers live only in `phone_numbers`, encrypted, with a keyed
+  blind index for lookups; logs and every other table carry the last four digits.
+- **Scheduled work.** Cloud Scheduler calls `POST /internal/jobs/tick` every 5 minutes:
+  overstay nudges, the nightly rollup, the morning handover, message retries. Each step is
+  idempotent, so a missed or doubled tick is harmless.
+
+## Abuse controls (WhatsApp, SMS, public endpoints)
+
+`app/abuse.py` holds the limits; counters live in Postgres because Cloud Run runs several
+instances.
+
+| Threat | Control |
+|---|---|
+| SMS pumping | Outbound only to numbers an admin registered. No SMS reply to unregistered senders; WhatsApp gets one reply a day each, with a global ceiling. Per-estate daily SMS budget (default 500): over it, messages are held and ops are emailed. Ops release or drop them at `/v1/ops/messages/held` |
+| Spoofed or flooding senders | Inbound capped per sender (20 per 10 minutes, 100 a day), dropped silently. Visits capped per home per day (default 30). Outbound capped at 60 a day per number |
+| Webhook replays | WhatsApp signature checked; provider message IDs remembered for a week; SMS webhook behind a path secret; payloads capped at 256 KB |
+| Brute force | Sign-in codes: 5 per email and 30 per IP an hour, 5 tries per code. Pairing: 10 per IP an hour |
+| Directory griefing | A number is flagged only after two different people report it |
 
 The landing page's form posts to `/api/demo` in the web app, which validates, drops bots
 (honeypot), rate-limits, then delivers the lead: to `POST {API_BASE_URL}/v1/demo-requests`
@@ -49,7 +92,8 @@ Without lead delivery configured the form shows an error in production. That is 
 | `API_INTERNAL_TOKEN` | web + api | shared bearer token for server-to-server calls |
 | `POSTMARK_SERVER_TOKEN`, `LEADS_EMAIL_FROM`, `LEADS_EMAIL_TO` | web | email delivery of demo requests until the API stores them |
 | `CORS_ORIGINS` | api | comma-separated allowed origins |
-| `ENV` | api | `production` hides `/docs` |
+| `ENV` | api | `production` hides `/docs` and refuses development secrets |
+| others | api | see `apps/api/.env.example` |
 
 ## Decisions
 
@@ -80,8 +124,13 @@ that provider; importing `motion.*` directly breaks the strict lazy-loading.
 
 - [ ] **Lead delivery configured on Vercel** (Postmark variables above), and one real test
       submission received.
-- [ ] The API persists demo requests. It logs and returns 202 today; first backend task is
-      a `demo_requests` table plus a notification.
+- [ ] The API persists demo requests. It logs and returns 202 today.
+- [ ] Termii: sender ID registered (weeks of lead time); inbound SMS webhook pointed at
+      `/v1/webhooks/sms/<SMS_WEBHOOK_SECRET>`; confirm its payload field names match
+      `routers/webhooks.py`.
+- [ ] WhatsApp: templates in `docs/whatsapp-templates.md` approved; webhook verified.
+- [ ] Cloud Scheduler job: `POST /internal/jobs/tick` every 5 minutes with the internal token.
+- [ ] Secrets in Secret Manager: token secret, phone encryption and index keys, estate keys.
 - [ ] Fill the placeholders in `apps/web/content/copy.ts`: contact email, WhatsApp number,
       response time, privacy link.
 - [ ] Privacy notice (NDPA 2023): the form collects a name and phone number.

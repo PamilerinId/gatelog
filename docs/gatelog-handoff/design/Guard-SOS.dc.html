@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guard SOS alert</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.pulse{animation:glpulse 1.8s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes glpulse{from{opacity:.85;transform:scale(1)}to{opacity:0;transform:scale(3.4)}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none;opacity:.35}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background-color: #111111; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px); color: #F4F4F2; font-family: Inter, system-ui, sans-serif;">
+
+<div style="padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid rgba(255,90,78,0.35);">
+<div style="display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em;">
+<span style="color: #FF5A4E;">SOS · HELP NEEDED</span>
+<span style="color: #F4F4F2;">0:28</span>
+</div>
+<h1 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 52px; font-weight: 600;">14B</h1>
+<span style="font-size: 17px; color: #A8A8A6;">Adeniyi Close · Mrs Adeyemi</span>
+</div>
+
+<div style="position: relative; height: 230px; flex: 0 0 230px; overflow: hidden;">
+<svg viewBox="0 0 390 230" width="390" height="230" role="img" aria-label="Map: alert at 14B Adeniyi Close, about 240 metres from Atiba gate" style="display: block;">
+<rect width="390" height="230" fill="#141413"></rect>
+<path d="M0 46H390M0 92H390M0 138H390M0 184H390M78 0V230M156 0V230M234 0V230M312 0V230" stroke="rgba(255,90,78,0.07)" stroke-width="1"></path>
+<polygon points="34,30 340,20 368,140 310,214 66,218 14,126" fill="#1A1A1A" stroke="rgba(255,90,78,0.5)" stroke-width="1" stroke-dasharray="4 4"></polygon>
+<path d="M190 216L194 126L198 26 M14 126L194 126L368 140 M50 62L330 56 M60 178L300 184" stroke="#2E2E2E" stroke-width="6" stroke-linecap="round" fill="none"></path>
+<path d="M20 126L194 126L196 62L262 60" stroke="#FF5A4E" stroke-width="2" stroke-dasharray="5 4" fill="none"></path>
+<circle cx="14" cy="126" r="6" fill="#F4F4F2"></circle><circle cx="22" cy="118" r="4" fill="#5AA9FF"></circle>
+<text x="26" y="114" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="1" fill="#A8A8A6">YOU · ATIBA GATE</text>
+<circle class="pulse" cx="262" cy="60" r="8" fill="none" stroke="#FF5A4E" stroke-width="2"></circle>
+<circle cx="262" cy="60" r="6" fill="#FF5A4E"></circle>
+<text x="274" y="88" font-family="JetBrains Mono, monospace" font-size="10.5" letter-spacing="1" fill="#FF5A4E">≈ 240 M</text>
+</svg>
+</div>
+
+<div style="flex: 1 1 auto; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+<button type="button" style="min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: #FF5A4E; color: #111111; border: 0; border-radius: 28px; font-family: Inter, sans-serif; font-size: 26px; font-weight: 700;"><svg width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z M9 21l2-6 3 2v4 M7 12l3-4h4l2 4 3 1 M10 8l1 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>I'm going</button>
+<button type="button" style="min-height: 52px; background: rgba(244,244,242,0.08); color: #F4F4F2; border: 0; border-radius: 16px; font-family: Inter, sans-serif; font-size: 15px;">Call the house</button>
+
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #A8A8A6;">EMERGENCY NUMBERS</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;">
+<button type="button" style="min-height: 48px; background: rgba(244,244,242,0.06); color: #F4F4F2; border: 0; border-radius: 14px; font-size: 13px; font-family: Inter, sans-serif;">Police</button>
+<button type="button" style="min-height: 48px; background: rgba(244,244,242,0.06); color: #F4F4F2; border: 0; border-radius: 14px; font-size: 13px; font-family: Inter, sans-serif;">Fire</button>
+<button type="button" style="min-height: 48px; background: rgba(244,244,242,0.06); color: #F4F4F2; border: 0; border-radius: 14px; font-size: 13px; font-family: Inter, sans-serif;">Ambulance</button>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

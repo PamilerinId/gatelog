@@ -1,0 +1,551 @@
+/* ------------------------------------------------------------------
+   The estate map behind the dashboard, and the dashboard's night
+   colours. The map is one fixed layer under the page:
+   - live  (overview)  full strength, interactive, panels float on it
+   - edit  (editor)    the same, with the editor's panel
+   - still (elsewhere) dimmed behind a paper scrim, not interactive,
+                       so tables read exactly as they do without it
+------------------------------------------------------------------- */
+
+.dash-themed {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--text);
+}
+
+/* Night: the same roles, re-pointed. Navy stays "structure" but turns light, so links, the
+   primary button and focus rings read on a dark page; surfaces go deep navy. Every token the
+   dashboard reads from .dash is restated here, because a custom property that refers to another
+   is resolved where it is declared. */
+.dash-themed[data-theme="night"] {
+  color-scheme: dark;
+  --paper: #0a1424;
+  --paper-alt: #0f1c30;
+  --white: #13223a;
+  --dash-surface: #13223a;
+  --navy: #a9c7f0;
+  --navy-deep: #050c18;
+  --navy-night: #03080f;
+  --ink: #eef3fa;
+  --text: #d5deea;
+  --slate: #a7b5c8;
+  --line: rgb(232 238 246 / 0.14);
+  --line-strong: rgb(232 238 246 / 0.3);
+  --pass: #7fd0a6;
+  --pass-soft: rgb(127 208 166 / 0.14);
+  --lamp: #e3a857;
+  --lamp-ink: #f2c27e;
+  --lamp-mark: #e3a857;
+  --lamp-soft: rgb(227 168 87 / 0.16);
+  --stop: #f19c86;
+  --stop-soft: rgb(241 156 134 / 0.14);
+  --navy-soft: rgb(169 199 240 / 0.12);
+}
+/* The side bar is dark in both themes: its "white" text stays white. */
+.dash-themed[data-theme="night"] .dash-side {
+  --white: #ffffff;
+}
+.dash-themed[data-theme="night"] .dash-btn--primary:hover:not(:disabled) {
+  background: #cfe0f7;
+}
+.dash-themed[data-theme="night"] .dash-btn--danger:hover:not(:disabled) {
+  background: #f6b9a8;
+}
+.dash-themed[data-theme="night"] .dash-msg--error {
+  color: #f8c7b9;
+}
+.dash-themed[data-theme="night"] .dash-msg--ok {
+  color: #b5e6cb;
+}
+.dash-themed[data-theme="night"] .dash-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.dash-shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------------- the map layer ---------------- */
+
+/* .dash-themed raises specificity over MapLibre's own .maplibregl-map { position: relative }. */
+.dash-themed .dash-map {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--paper);
+}
+@media (min-width: 900px) {
+  .dash-themed .dash-map {
+    left: var(--dash-side);
+  }
+}
+.dash-map[data-mode="none"] {
+  display: none;
+}
+.dash-map[data-mode="still"] {
+  pointer-events: none;
+}
+/* The scrim: the map shows through faintly, tables and text sit on what is nearly plain paper. */
+.dash-map[data-mode="still"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--paper);
+  opacity: 0.84;
+}
+.dash-map[data-mode="still"] .maplibregl-ctrl-bottom-right {
+  display: none;
+}
+.dash-map .maplibregl-ctrl-bottom-right {
+  bottom: 22px;
+}
+.dash-map .maplibregl-canvas:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: -3px;
+}
+.dash-themed[data-theme="night"] .maplibregl-ctrl-group {
+  background: var(--dash-surface);
+}
+.dash-themed[data-theme="night"] .maplibregl-ctrl-group button + button {
+  border-top-color: var(--line);
+}
+.dash-themed[data-theme="night"] .maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+/* In live and edit modes the page lets the map take the pointer, except where it has panels. */
+.dash-themed[data-map="live"] .dash-main,
+.dash-themed[data-map="edit"] .dash-main {
+  pointer-events: none;
+}
+.dash-themed[data-map="live"] .dash-main :is(.dash-float, .dash-live__after, .dash-prompt, .dash-crumbs),
+.dash-themed[data-map="edit"] .dash-main :is(.dash-float, .dash-crumbs) {
+  pointer-events: auto;
+}
+.dash-themed[data-map="live"] .dash-banner {
+  display: none;
+}
+
+/* The OpenStreetMap credit, on every page that has the map. */
+.dash-osm {
+  position: fixed;
+  right: 6px;
+  bottom: 4px;
+  z-index: 5;
+  margin: 0;
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--dash-surface) 88%, transparent);
+}
+.dash .dash-osm a {
+  color: var(--slate);
+  text-decoration: none;
+}
+.dash .dash-osm a:hover {
+  text-decoration: underline;
+}
+
+/* ---------------- markers ---------------- */
+
+.dash-pin {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.dash-pin__label {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translate(6px, -50%);
+  padding: 1px 6px;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  background: var(--dash-surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 3px rgb(5 18 38 / 0.18);
+}
+.dash-pin__dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dash-surface);
+  border: 3px solid var(--navy);
+  box-shadow: 0 1px 3px rgb(5 18 38 / 0.25);
+}
+
+/* Gates: a solid navy square. A gate whose phone has gone quiet turns red. */
+.dash-pin--gate {
+  width: 18px;
+  height: 18px;
+}
+.dash-pin--gate .dash-pin__dot {
+  border-radius: var(--radius);
+  background: var(--navy);
+  border: 2px solid var(--dash-surface);
+  outline: 1px solid var(--navy);
+}
+.dash-pin--gate .dash-pin__label {
+  font-weight: 700;
+}
+.dash-pin--gate.is-quiet .dash-pin__dot {
+  background: var(--stop);
+  outline-color: var(--stop);
+}
+.dash-pin--gate.is-quiet .dash-pin__label {
+  border-color: var(--stop);
+  color: var(--stop);
+}
+
+/* Places: rings. A shuttle stop is a diamond, a security post a small square. */
+.dash-pin--place {
+  width: 14px;
+  height: 14px;
+}
+.dash-pin--place .dash-pin__label {
+  font-weight: 500;
+}
+.dash-pin--pickup .dash-pin__dot {
+  border-radius: var(--radius);
+  transform: rotate(45deg) scale(0.85);
+}
+.dash-pin--post .dash-pin__dot {
+  border-radius: var(--radius);
+  border-width: 2px;
+}
+
+/* Shuttles: a filled disc with a notch pointing the way the rider is heading. */
+.dash-pin--bike {
+  width: 24px;
+  height: 24px;
+}
+.dash-pin__arrow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--pass);
+  border: 3px solid var(--dash-surface);
+  box-shadow: 0 1px 4px rgb(5 18 38 / 0.35);
+}
+.dash-pin--bike.has-heading .dash-pin__arrow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 0;
+  height: 0;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-bottom: 7px solid var(--pass);
+  transform-origin: 5px 18px;
+  transform: rotate(var(--heading, 0deg));
+}
+.dash-pin--bike.is-stale .dash-pin__arrow {
+  background: var(--slate);
+  opacity: 0.7;
+}
+.dash-pin--bike.is-stale .dash-pin__arrow::before {
+  border-bottom-color: var(--slate);
+}
+.dash-pin--bike.is-stale .dash-pin__label {
+  color: var(--slate);
+}
+
+/* Rides waiting: amber, with minutes waited. A slow pulse unless motion is reduced. */
+.dash-pin--ride {
+  width: 14px;
+  height: 14px;
+}
+.dash-pin__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--lamp);
+  border: 2px solid var(--dash-surface);
+}
+.dash-pin__pulse::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid var(--lamp);
+  animation: dash-pulse 2.4s ease-out infinite;
+}
+.dash-pin--ride .dash-pin__label {
+  border-color: var(--lamp-mark);
+  background: var(--lamp-soft);
+  background: color-mix(in srgb, var(--lamp) 22%, var(--dash-surface));
+  color: var(--ink);
+}
+.dash-pin--ride.is-long .dash-pin__label {
+  border-width: 2px;
+}
+@keyframes dash-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-pin__pulse::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ---------------- floating panels ---------------- */
+
+.dash-float {
+  background: color-mix(in srgb, var(--dash-surface) 95%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(5 18 38 / 0.14);
+}
+@supports (backdrop-filter: blur(4px)) {
+  .dash-float {
+    backdrop-filter: blur(6px);
+  }
+}
+
+.dash-panel {
+  padding: 12px 14px;
+}
+.dash-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.dash-panel__count {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 7px;
+  border-radius: var(--radius);
+  background: var(--navy-soft);
+  color: var(--navy);
+}
+.dash-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dash-panel__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0 8px 10px;
+  border-top: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  margin-left: -13px;
+  padding-left: 10px;
+}
+.dash-panel__item:first-child {
+  border-top: 0;
+}
+.dash-panel__item.is-bad {
+  border-left-color: var(--stop);
+}
+.dash-panel__item.is-warn {
+  border-left-color: var(--lamp);
+}
+.dash-panel__item.is-stale {
+  opacity: 0.7;
+}
+.dash-panel__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+}
+.dash-panel__main strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.dash-panel__main .dash-hint,
+.dash-panel__main .dash-problem {
+  margin-top: 1px;
+}
+.dash-live__show {
+  flex-shrink: 0;
+  min-height: 32px;
+  font-size: 13px;
+}
+
+/* ---------------- the live overview ---------------- */
+
+.dash-live {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dash-live__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  padding: 12px 14px;
+}
+.dash-live__title {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.dash-live__title .dash-h1 {
+  font-size: 22px;
+}
+.dash-live__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.dash-live__count {
+  min-width: 84px;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border-top: 3px solid var(--line-strong);
+}
+.dash-live__count.is-warn {
+  border-top-color: var(--lamp);
+}
+.dash-live__count dt {
+  font-size: 12px;
+  color: var(--slate);
+  font-weight: 600;
+}
+.dash-live__count dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.dash-live__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-live__after {
+  margin: 24px calc(-1 * var(--dash-pad)) -64px;
+  padding: 24px var(--dash-pad) 64px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+.dash-live__after-title {
+  margin-bottom: 12px;
+}
+
+/* Phones and narrow windows: the map shows above, the panels scroll up over it. */
+@media (max-width: 899px) {
+  .dash-live__panels {
+    margin-top: 34vh;
+  }
+}
+
+/* Wide screens: the top bar across, the panels in a column on the left, the map to the right. */
+@media (min-width: 900px) {
+  .dash-themed[data-map="live"] .dash-main,
+  .dash-themed[data-map="edit"] .dash-main {
+    max-width: none;
+  }
+  .dash-live {
+    min-height: calc(100dvh - 32px - 24px);
+  }
+  .dash-live__panels {
+    width: min(380px, 42%);
+    max-height: calc(100dvh - 210px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+  }
+  .dash-live__top {
+    max-width: 1100px;
+  }
+}
+
+/* The overview without a map: prompt the admin to draw one. */
+.dash-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  max-width: none;
+  margin-bottom: 18px;
+}
+.dash-prompt p {
+  flex: 1 1 320px;
+}
+
+/* ---------------- day and night control (in the side bar) ---------------- */
+
+.dash-theme {
+  border: 0;
+  margin: 4px 0 12px;
+  padding: 0;
+  min-width: 0;
+}
+.dash-theme__legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ice-soft);
+  margin-bottom: 4px;
+}
+.dash-seg {
+  display: inline-flex;
+  border: 1px solid var(--ice-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.dash-seg__opt {
+  position: relative;
+  cursor: pointer;
+}
+.dash-seg__opt input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.dash-seg__opt span {
+  display: block;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ice-soft);
+}
+.dash-seg__opt + .dash-seg__opt span {
+  border-left: 1px solid var(--ice-line);
+}
+.dash-seg__opt input:checked + span {
+  background: var(--ice);
+  color: #081a33;
+}
+.dash-seg__opt input:focus-visible + span {
+  outline: 2px solid var(--ice);
+  outline-offset: -4px;
+}
+.dash-theme__note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ice-soft);
+}

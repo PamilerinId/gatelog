@@ -1,0 +1,23 @@
+{
+  "algorithm": "PBKDF2-HMAC-SHA256(pin as UTF-8, salt, iterations, 32 bytes). Stored as pbkdf2-sha256$<iterations>$<salt base64>$<hash base64>. The phone makes and checks these; the server only checks the format.",
+  "vectors": [
+    {
+      "pin": "482913",
+      "salt_hex": "000102030405060708090a0b0c0d0e0f",
+      "iterations": 60000,
+      "pin_hash": "pbkdf2-sha256$60000$AAECAwQFBgcICQoLDA0ODw==$Cqbd35S4VPlQeWZE59xv6HpcNyCbfQnHtjgTgXrnuT8="
+    },
+    {
+      "pin": "000000",
+      "salt_hex": "ffeeddccbbaa99887766554433221100",
+      "iterations": 60000,
+      "pin_hash": "pbkdf2-sha256$60000$/+7dzLuqmYh3ZlVEMyIRAA==$cijWyic8yNWYtIgDtbVMdUgBppAGv/R/rxeso64DI7o="
+    },
+    {
+      "pin": "123456",
+      "salt_hex": "6761746c6f672d70696e2d73616c7421",
+      "iterations": 20000,
+      "pin_hash": "pbkdf2-sha256$20000$Z2F0bG9nLXBpbi1zYWx0IQ==$BjqN32dzkdW4xpNd7w8IwYim0YV6a7R6xLWtbe5MmrU="
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guard start shift</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 18px; background-color: {{t.bg}}; background-image: {{t.fabric}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif;">
+
+<div style="display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: {{t.muted}};">
+<span>ATIBA GATE</span>
+<button type="button" aria-label="Read this screen aloud" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: {{t.surface}}; color: {{t.text}}; border: 0; border-radius: 999px;"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z M16 9a4 4 0 0 1 0 6 M18.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg></button>
+</div>
+
+<h1 style="margin: 0; font-size: 30px; font-weight: 700;">Tap your face</h1>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+<sc-for list="{{guards}}" as="g" hint-placeholder-count="4">
+<button type="button" aria-label="{{g.name}}" style="{{g.style}}">
+<span style="width: 56px; height: 56px; border-radius: 999px; background: {{t.bg}}; display: flex; align-items: center; justify-content: center;"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M4.5 20.5c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg></span>
+<span style="font-size: 13px; font-weight: 600;">{{g.name}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; justify-content: center; gap: 18px; padding: 4px 0;" aria-label="2 of 4 PIN numbers entered">
+<span style="width: 18px; height: 18px; border-radius: 50%; background: {{t.text}};"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; background: {{t.text}};"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; border: 2px solid {{t.muted}};"></span>
+<span style="width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; border: 2px solid {{t.muted}};"></span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+<sc-for list="{{keys}}" as="k" hint-placeholder-count="12">
+<button type="button" aria-label="{{k.aria}}" style="height: 66px; background: {{k.bg}}; color: {{k.fg}}; border: 0; border-radius: 20px; font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 500;">{{k.label}}</button>
+</sc-for>
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; color: {{t.muted}}; font-size: 13px;">
+<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.6"></circle></svg>
+<span>Photo is taken when you start</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"night":{"editor":"boolean","default":true},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const night = this.props.night ?? true;
+    const t = night
+      ? { bg: '#111111', surface: '#1C1C1C', text: '#F4F4F2', muted: '#A8A8A6', accent: '#F4F4F2' }
+      : { bg: '#F2F2F0', surface: '#FFFFFF', text: '#141414', muted: '#4A4A48', accent: '#141414' };
+    const names = ['Musa', 'Chidi', 'Segun', 'Ibrahim'];
+    const guards = names.map((n, i) => ({
+      name: n,
+      style: 'display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; background: ' + t.surface + '; color: ' + t.text + '; border: 2px solid ' + (i === 0 ? t.accent : 'transparent') + '; border-radius: 20px;'
+    }));
+    const labels = ['1','2','3','4','5','6','7','8','9','×','0','→'];
+    const keys = labels.map(l => ({
+      label: l,
+      aria: l === '×' ? 'Clear' : (l === '→' ? 'Start shift' : 'Number ' + l),
+      bg: l === '→' ? t.accent : t.surface,
+      fg: l === '→' ? t.bg : t.text
+    }));
+    keys[11].label = '→';
+    t.fabric = night ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.35) 0 1px, transparent 1px 3px), radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.05), transparent 65%)' : 'none';
+    return { t, guards, keys };
+  }
+}
+</script>
+</body>
+</html>

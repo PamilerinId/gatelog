@@ -10,3 +10,5 @@ __pycache__/
 .env.*
 !.env.example
 .DS_Store
+.storage/
+.playwright-mcp/

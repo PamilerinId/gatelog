@@ -1,0 +1,15 @@
+# Local Postgres for the API. Port 54329 avoids clashing with any Postgres already on 5432.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gatelog_owner
+      POSTGRES_PASSWORD: gatelog_owner
+      POSTGRES_DB: gatelog
+    ports:
+      - "54329:5432"
+    volumes:
+      - gatelog-db:/var/lib/postgresql/data
+      - ./apps/api/db/init:/docker-entrypoint-initdb.d:ro
+volumes:
+  gatelog-db:
