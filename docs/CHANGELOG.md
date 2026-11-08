@@ -2,6 +2,14 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 8 November 2026: voice clips for visitor names (API for step 3)
+
+- **Upload:** `PUT /v1/device/clips/{id}` takes a short audio clip of the visitor's name. It is encrypted before storage and deleted after 7 days.
+- **Links:** entries and visits point at the clip (`name_clip_id`), and the two can arrive in either order.
+- **Playback:** the admin and the CSO can play a clip (`GET /v1/admin/clips/{id}`, audited, no-store).
+- **Typing the name:** `PATCH /v1/admin/entries/{id}` types the name in (audited) and renames the visit, so the gate's Leaving list shows it.
+- Migration 0007. The isolation test covers the new table and routes.
+
 ## 8 November 2026: step 2b, a resident's new number, with the home's YES
 
 - **Offer from the gate:** after a callback confirms a resident who rang from an unknown number, the gate phone can offer to register it (`number_offers` sync record).

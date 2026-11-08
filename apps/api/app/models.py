@@ -385,6 +385,7 @@ class Visit(Base):
     # verified: by message from a registered number, or confirmed on a callback; pin_verified:
     # a caller from any number gave the home PIN; unverified: the CSO's decision on a description.
     trust: Mapped[str] = mapped_column(String(12), default="verified", server_default="verified")
+    name_clip_id: Mapped[uuid.UUID | None] = mapped_column()  # a phone-made visit whose name was spoken
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -436,6 +437,9 @@ class Entry(Base):
     trust: Mapped[str | None] = mapped_column(String(12))
     # The number the announcing call came from, masked ("0803•••1234"), when the phone saw it.
     caller_masked: Mapped[str | None] = mapped_column(String(16))
+    # The guard said the visitor's name instead of typing it: the clip (see VoiceClip). The
+    # admin can type the name in later; guest_name says "Voice clip" until then.
+    name_clip_id: Mapped[uuid.UUID | None] = mapped_column()
     # The home replied NO to the "Not you?" message: who and when.
     disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     disputed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("residents.id", ondelete="SET NULL"))
@@ -698,6 +702,22 @@ class NumberOffer(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class VoiceClip(Base):
+    """A visitor's name, spoken by the guard instead of typed. Encrypted in storage like a
+    selfie, played only by the admin and the CSO (each play audited), deleted after 7 days.
+    Entries and visits point at it by id; it may arrive before or after them."""
+
+    __tablename__ = "voice_clips"
+    id: Mapped[uuid.UUID] = pk()  # client-generated
+    estate_id: Mapped[uuid.UUID] = estate_fk()
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
+    ref: Mapped[str | None] = mapped_column(String(200))  # storage key; null once deleted
+    content_type: Mapped[str] = mapped_column(String(40))
+    size: Mapped[int] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 # --- Estate shuttle ----------------------------------------------------------------------
 
 
@@ -822,6 +842,6 @@ TENANT_TABLES = [
     for t in (
         Zone, Street, Home, Resident, PhoneNumber, Gate, Guard, Shift, Vehicle, Device, Visit, Callback, Entry, Exit,
         OverstayNudge, Rollup, RollupItem, DirectoryReport, Conversation, MessageLog, ImportBatch, AuditEvent,
-        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck, NumberOffer,
+        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck, NumberOffer, VoiceClip,
     )
 ]

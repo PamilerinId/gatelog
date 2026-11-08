@@ -76,7 +76,9 @@ def fill(owner, e, tag: str, resident_phone: str, sender: str) -> dict:
             {"id": entry_2, "home_id": e.home_id, "visit_id": visits[f"late {tag.lower()}"]["id"], "guest_name": f"Late {tag}", "method": "code", "at": "2026-10-21T08:03:00Z", **who}],
         "exits": [{"id": str(uuid.uuid4()), "method": "list_tap", "entry_id": entry_1, "at": "2026-10-21T08:04:00Z", **who}],
     })
-    ids["visit"] = visits[f"late {tag.lower()}"]["id"]
+    ids["visit"], ids["entry"] = visits[f"late {tag.lower()}"]["id"], entry_2
+    ids["clip"] = str(uuid.uuid4())
+    client.put(f"/v1/device/clips/{ids['clip']}", headers=e.dev | {"Content-Type": "audio/mp4"}, content=b"\x00" * 500)
     client.post("/v1/device/sync", headers=e.dev, json={
         "pin_checks": [{"id": str(uuid.uuid4()), "home_id": e.home_id, "ok": False, "at": "2026-10-21T08:04:30Z", **who}],
         "number_offers": [{"id": str(uuid.uuid4()), "resident_id": e.resident_id, "number": resident_phone[:-1] + "9", "at": "2026-10-21T08:04:40Z", **who}],
@@ -197,12 +199,16 @@ WRITE_BODIES = {
     "/v1/admin/shuttles/{shuttle_id}": {"label": "Hijack"},
     "/v1/admin/streets/{street_id}": {"name": "Hijack"},
     "/v1/admin/zones/{zone_id}": {"name": "Hijack"},
+    "/v1/admin/entries/{entry_id}": {"guest_name": "Hijack"},
 }
 PARAM_IDS = {
     "card_id": "card", "device_id": "device", "entry_id": "directory", "gate_id": "gate", "guard_id": "guard", "home_id": "home",
     "batch_id": "batch", "number_id": "number", "place_id": "place", "resident_id": "resident", "ride_id": "ride",
     "shift_id": "shift", "shuttle_id": "shuttle", "staff_id": "staff", "street_id": "street", "vehicle_id": "vehicle", "zone_id": "zone",
+    "clip_id": "clip",
 }
+# Where one parameter name means different things on different routes.
+PATH_PARAM_IDS = {"/v1/admin/entries/{entry_id}": {"entry_id": "entry"}}
 
 
 def test_http_every_role_of_estate_a_gets_nothing_of_estate_b(owner, estates):
@@ -244,7 +250,7 @@ def test_http_every_role_of_estate_a_gets_nothing_of_estate_b(owner, estates):
         if params:
             url = path
             for p in params:
-                url = url.replace("{" + p + "}", idb[PARAM_IDS[p]])
+                url = url.replace("{" + p + "}", idb[PATH_PARAM_IDS.get(path, {}).get(p) or PARAM_IDS[p]])
             for method in sorted(methods):
                 kwargs = {"json": WRITE_BODIES.get(path, {})} if method in ("PATCH", "PUT", "POST") else {}
                 if path == "/v1/admin/staff/{staff_id}":

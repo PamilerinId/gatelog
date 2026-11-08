@@ -197,6 +197,21 @@ PIN-verified; `walk_in_admitted` and `phone_announced` are unverified.
   home at once: "Not you? Reply NO". A NO shows in the CSO view under `needs.disputed_today` and goes
   to the security head by SMS. Nothing changes on the gate phone's side.
 
+**Visitor names: say, don't type.** The guard records the visitor's name as a short voice clip
+(under 300 KB, about 30 seconds at most). Give the clip its own UUID. Send `guest_name: "Voice clip"`
+and `name_clip_id: <clip id>` on the entry (or on the visit for "coming later"), and upload the audio
+when there is data:
+
+```
+PUT /v1/device/clips/{clip_id}     body: the audio, Content-Type audio/mp4 (or aac, ogg, mpeg, webm, wav)
+-> 204 stored (or already stored)   -> 413 too large   -> 415 not audio   -> 400 empty
+```
+
+The record and the clip can arrive in either order. Keep the local clip until it has uploaded, so
+the guard can play it back at exit, then delete it. The admin or the CSO types the name in the
+dashboard later; it reaches `/state` (the visit's `guest_name`) at the next pull. Clips are
+deleted on the server after 7 days.
+
 **A resident's new number.** When a resident rang the gate from a number not on file and then
 confirmed on the callback to their registered number, offer "Add this number for Mrs Adeyemi?"
 (Yes/No). Yes is a `number_offers` record: `{id, resident_id, number, guard_id, shift_id, at}`,

@@ -34,6 +34,7 @@ from ..models import (
     Vehicle,
     Street,
     Visit,
+    VoiceClip,
     Zone,
 )
 
@@ -624,6 +625,42 @@ def view_selfie(shift_id: UUID, staff: Staff = Depends(selfie_viewer)) -> Respon
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
+@router.get("/clips/{clip_id}")
+def play_clip(clip_id: UUID, staff: Staff = Depends(selfie_viewer)) -> Response:
+    """A visitor's name as the guard said it. Admin and CSO only; every play is audited."""
+    with db.session(staff.estate_id) as s:
+        c = _get(s, VoiceClip, clip_id, "clip")
+        if not c.ref:
+            raise HTTPException(404, "this clip was deleted after 7 days")
+        data = storage.get_decrypted(c.ref)
+        if data is None:
+            raise HTTPException(404, "clip missing from storage")
+        audit.record(s, staff.estate_id, staff.actor, "play_clip", c)
+    return Response(data, media_type=c.content_type, headers={"Cache-Control": "no-store"})
+
+
+class EntryNameIn(BaseModel):
+    guest_name: str = Field(min_length=1, max_length=120)
+
+
+@router.patch("/entries/{entry_id}")
+def name_entry(entry_id: UUID, body: EntryNameIn, bg: BackgroundTasks, staff: Staff = Depends(selfie_viewer)) -> dict:
+    """Type the name the guard said into the clip (or correct one). Audited; the visit the
+    entry belongs to takes the name too."""
+    with db.session(staff.estate_id) as s:
+        e = _get(s, Entry, entry_id, "entry")
+        before = audit.snapshot(e)
+        e.guest_name = body.guest_name.strip()
+        if e.visit_id:
+            v = s.get(Visit, e.visit_id)
+            if v is not None and v.name_clip_id is not None:
+                v.guest_name = e.guest_name
+        audit.record(s, staff.estate_id, staff.actor, "name_entry", e, before)
+        out = {"id": e.id, "guest_name": e.guest_name}
+    bg.add_task(push.estate_changed, staff.estate_id)
+    return out
+
+
 def _device_out(d: Device) -> dict:
     status_ = "revoked" if d.revoked_at else "paired" if d.paired_at else "awaiting pairing"
     return {"id": d.id, "label": d.label, "gate_id": d.gate_id, "status": status_, "paired_at": d.paired_at,
@@ -826,7 +863,7 @@ def list_entries(
                 "id": e.id, "at": e.at, "guest_name": e.guest_name, "address": homes.get(e.home_id), "method": e.method,
                 "gate": gates.get(e.gate_id), "guard": guards.get(e.guard_id), "note": e.note, "plate": e.plate,
                 "decided_by": guards.get(e.decided_by), "reason": e.reason, "shift_id": e.shift_id,
-                "trust": e.trust, "caller": e.caller_masked, "disputed_at": e.disputed_at,
+                "trust": e.trust, "caller": e.caller_masked, "disputed_at": e.disputed_at, "name_clip_id": e.name_clip_id,
                 "exit_at": exits[e.id].at if e.id in exits else None, "exit_method": exits[e.id].method if e.id in exits else None,
             }
             for e in rows

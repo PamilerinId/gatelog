@@ -35,7 +35,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .. import abuse, clock, db, directory, messaging, numbers, push, shifts, shuttle, storage, trust, visits
+from .. import abuse, clips, clock, db, directory, messaging, numbers, push, shifts, shuttle, storage, trust, visits
 from .. import stay as stay_mod
 from ..auth import DeviceAuth, current_device, new_device_token, sha256
 from ..estate_settings import EstateSettings
@@ -46,6 +46,7 @@ from ..models import (
     Device,
     NumberOffer,
     PinCheck,
+    VoiceClip,
     Place,
     Position,
     ResidentCard,
@@ -289,6 +290,7 @@ class VisitIn(BaseModel):
     stay_given: bool = True
     # verified: confirmed on a callback; pin_verified: the caller gave the home PIN.
     trust: Literal["verified", "pin_verified"] = "verified"
+    name_clip_id: UUID | None = None  # the guard said the name: the clip uploaded to /clips/{id}
 
 
 class CallbackIn(BaseModel):
@@ -317,6 +319,7 @@ class EntryIn(BaseModel):
     reason: str | None = Field(default=None, max_length=280)
     note: str | None = Field(default=None, max_length=280)
     caller_masked: str | None = Field(default=None, pattern=CALLER_MASK)  # the announcing call, if the phone saw it
+    name_clip_id: UUID | None = None  # the guard said the name: the clip uploaded to /clips/{id}
     at: datetime
 
 
@@ -498,7 +501,7 @@ class _Sync:
             id=v.id, estate_id=self.estate.id, home_id=v.home_id, resident_id=v.resident_id, guest_name=v.guest_name.strip(),
             window_start=v.window_start, window_end=v.window_end, source="phone_announced", code_issued=False,
             expected_until=v.expected_until, stay_type=v.stay_type, stay_minutes=v.stay_minutes, stay_given=v.stay_given, state="expected",
-            trust=v.trust,
+            trust=v.trust, name_clip_id=v.name_clip_id,
         )):
             self.changed = True
 
@@ -538,7 +541,7 @@ class _Sync:
             id=e.id, estate_id=self.estate.id, visit_id=visit_id, home_id=e.home_id, guest_name=e.guest_name.strip(),
             guard_id=e.guard_id, shift_id=e.shift_id, device_id=self.dev.id, gate_id=e.gate_id or self.dev.gate_id, method=e.method,
             plate=normalise_plate(e.plate), decided_by=e.decided_by, reason=(e.reason or "").strip() or None, note=e.note, at=self._at(e.at),
-            trust=level, caller_masked=e.caller_masked,
+            trust=level, caller_masked=e.caller_masked, name_clip_id=e.name_clip_id,
         )
         if self._insert(Entry, row):
             entry = self.s.get(Entry, e.id)
@@ -576,7 +579,7 @@ class _Sync:
             id=vid, estate_id=self.estate.id, home_id=e.home_id, resident_id=resident_id, guest_name=e.guest_name.strip(),
             window_start=at, window_end=max(end_of_day, at + timedelta(hours=1)), source="phone_announced", code_issued=False,
             expected_until=s.until, stay_type=s.type, stay_minutes=None, stay_given=False, state="expected",
-            trust=trust.BY_METHOD[e.method],
+            trust=trust.BY_METHOD[e.method], name_clip_id=e.name_clip_id,
         ).on_conflict_do_nothing(index_elements=["id"]))
         if cb and cb.visit_id is None:
             cb.visit_id = vid
@@ -850,6 +853,27 @@ def positions(body: PositionsIn, dev: DeviceAuth = Depends(current_device)) -> d
         s.add_all(kept)
         s.get(Device, dev.id).last_sync_at = now
     return {"stored": len(kept)}
+
+
+@router.put("/clips/{clip_id}", status_code=204)
+async def upload_clip(clip_id: UUID, request: Request, dev: DeviceAuth = Depends(current_device)) -> None:
+    """A visitor's name, spoken. Sent with its own id; entries and visits name it in
+    `name_clip_id`, before or after it arrives. Retrying is safe."""
+    ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ctype not in clips.TYPES:
+        raise HTTPException(415, "send audio (audio/mp4, audio/aac, audio/ogg ...)")
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "empty clip")
+    if len(data) > clips.MAX_BYTES:
+        raise HTTPException(413, "clip larger than 300 KB; keep it to the name")
+    with db.session(dev.estate_id) as s:
+        if s.get(VoiceClip, clip_id) is not None:
+            return  # already stored
+        key = clips.key(dev.estate_id, clip_id)
+        storage.put_encrypted(key, data)
+        s.add(VoiceClip(id=clip_id, estate_id=dev.estate_id, device_id=dev.id, ref=key, content_type=ctype, size=len(data),
+                        uploaded_at=clock.now()))
 
 
 def _cso_shift(s: Session, dev: DeviceAuth, shift_id: str | None) -> Shift:
