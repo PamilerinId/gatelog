@@ -225,7 +225,10 @@ class _HomeFlowScreenState extends State<HomeFlowScreen> {
               label: 'Shuttle to the home',
               icon: Icons.two_wheeler,
               color: GateColors.navy,
-              onPressed: () => openShuttleToHome(context, home: home, guestName: letIn.$2, replace: true),
+              onPressed: () async {
+                final nav = Navigator.of(context);
+                if (await openShuttleToHome(context, home: home, guestName: letIn.$2)) nav.pop();
+              },
             ),
             const SizedBox(height: 10),
             OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Done')),

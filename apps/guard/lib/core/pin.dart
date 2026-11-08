@@ -18,6 +18,10 @@ import 'package:flutter/foundation.dart';
 const pinIterations = 60000;
 const pinLength = 6;
 const pinMaxTries = 5;
+
+/// A home PIN (the shuttle's and the gate's): 3 wrong tries on one home, then the rider asks
+/// them to call the gate (and offers the card, or vouches).
+const homePinMaxTries = 3;
 const pinLockout = Duration(minutes: 5);
 
 /// Six digits, nothing else.

@@ -39,7 +39,7 @@ sync while the app is in the foreground. All of this sits behind `PushService` i
 
 ### Code generation
 
-The drift tables (`lib/data/db.dart`, schema version 2: guard roles, PIN hashes and consent, vehicles, selfies) generate `db.g.dart`, which is checked in. After changing a table:
+The drift tables (`lib/data/db.dart`, schema version 3: guard roles, PIN hashes and consent, vehicles, selfies; then home PIN hashes and the rider's position queue) generate `db.g.dart`, which is checked in. After changing a table:
 
 ```
 dart run build_runner build --force-jit
@@ -76,6 +76,40 @@ and `rollup_checks` models do not have these fields yet and ignore them.)
 
 Stays: about an hour = 60 min, a few hours = 180 min, overnight = 10:00 next day, a date = 18:00
 that day, all in the estate's timezone (`Africa/Lagos`, via the `timezone` package).
+
+## The estate shuttle (only where `/state.shuttle` is not null)
+
+The contract's "The estate shuttle". Everything here is hidden when the estate runs no shuttle.
+The new screens follow the handoff design (`docs/gatelog-handoff/design`, `lib/ui/kit.dart`):
+one job per screen, Yes or No instead of lists, no typing, every result read aloud
+(`flutter_tts`, English), charcoal with a fabric twill from 19:00 to 06:59 estate time and white
+by day, Inter for words and JetBrains Mono for data (both bundled in `assets/fonts`, SIL OFL).
+The older guard and CSO screens keep their look until their redesign is approved.
+
+| Screen | |
+|---|---|
+| Rider shift start | On Start your shift, **Shuttle rider** opens: tap your face (riders only), the 6-digit PIN keypad (as for guards: set twice, 5 tries then 5 minutes), then the motorcycle as big tiles (`shuttle_id` on the shift record). The photo is taken when the motorcycle is tapped (the camera warms up on that screen and is never shown). |
+| Rider view | One ride at a time. Waiting: the ride (kind, FROM, TO, how long it has waited, who or what, the note, "1 OF 3") and **Take it?** Yes / No. No shows the next one; "See them again" after the last. Taken: **Tap their card** (NFC, listening while it shows) or **No card** (home PIN), plus Hand back and Nobody came. Under way: **Did they arrive?** Yes / No. A parcel: **Got the parcel?** at the gate, and who took it (card or home PIN) at drop-off. "Taken by Ade" when the sync rejects a Take it: said aloud, shown, the ride gone. **New ride** (flagged down): card or home PIN or "Do you know them?", then "Picking up at ...?" and "Going to ...?" Yes / No. `/state` every 15 s while it shows. |
+| Who rode | Card: hash the UID (`lib/core/card.dart`), look it up in `shuttle.cards`, "Card is Mrs Adeyemi, 14B. Is this them?". No card: the home PIN keypad (4 digits, PBKDF2 like a guard PIN, offline, in an isolate); 3 wrong tries on one home: "Ask them to call the gate", with the card or vouching offered; every check is a `pin_checks` record (`context: shuttle`). No PIN: "Did the guard send them?" (gate bookings) and "Do you know them?". |
+| Home picker | No typing: the street, then the house numbers as tiles (one street goes straight to the numbers). |
+| Shuttle to the home (guard menu; and on No code after a guest is let in) | The house, then Parcel or Guest, then "Book the shuttle?". `source: gate`, pickup the phone's gate. No typing: a parcel has no description; a guest let in on No code keeps the name already given. |
+| CSO: Shuttle tab, and Now | Book a ride and Issue a card, rides waiting over 10 minutes (`needs.rides_waiting`, also on Now), open rides with their rider. Book a ride: the house, "Did Mrs Adeyemi ring?", from, to, when (Now / 30 min / 1 h / 2 h), "Book this ride?" (`source: dispatch`). Issue a card: tap the new card, the house, "Give the card to Mrs Adeyemi?", then the server's answer (a card already someone's comes back rejected with whose it is). |
+
+- **Positions** (`lib/app/positions.dart`, `lib/sync/location.dart`): only during an open rider
+  shift, from geolocator's position stream with its Android foreground service and notification
+  ("Shuttle shift"), every 15 s (faster fixes are skipped). Points wait in the encrypted database
+  (2 hours at most), go to `POST /v1/device/positions` oldest first in batches of 200, and stop
+  the moment the shift ends. A sync with points queued sends them after the shift's start and
+  before its end, so none is refused as "shift closed". 409 while the shift start is still queued
+  keeps them; 403, or 409 for a closed shift, drops them. Location is asked for at the first rider
+  shift (fine location; notifications on Android 13+); "Location not allowed" shows with Turn on.
+- **NFC** (`lib/sync/card_reader.dart`, `nfc_manager` 4): the tag id as upper-case hex, hashed at
+  once, never stored, shown or logged (only its last 4 hex digits, as the server keeps them). The
+  emulator has no NFC: debug builds only (`kDebugMode`) show "Test build only: type a card UID".
+- Android: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_LOCATION` (Android 14), `POST_NOTIFICATIONS`, `WAKE_LOCK`, `NFC` (not
+  required), and the TTS service query. `MainActivity` has a small channel to ask for
+  notifications.
 
 ## Shifts, PINs and selfies
 
@@ -133,7 +167,7 @@ build) the app refuses to open the database rather than write numbers unencrypte
 is lost (Keystore reset), the unreadable file is deleted and the phone has to be paired again.
 Backups are off (`android:allowBackup="false"`).
 
-Never logged: phone numbers, keys, PINs, PIN hashes, selfies, the token. `PhoneNumber.toString()`
+Never logged: phone numbers, keys, PINs, PIN hashes, home PINs, card UIDs, positions, selfies, the token. `PhoneNumber.toString()`
 is masked and `Guard.toString()` leaves out the hash. Full numbers
 appear only in the `tel:` URI for a callback.
 
@@ -153,6 +187,8 @@ flutter test
 - `test/outbox_test.dart`: accepted and duplicates leave the queue, rejected parked, network failure retried, 422 split, directory reports, 401, purge after a pull, pins and shifts first, one answer for a shift's start and end, walk-ins kept until exited.
 - `test/controller_test.dart`: offline admit and exit with plates, queue drain, the server-visit dedupe for callback entries, expect later, Undo, 401 wipe (selfies too), night list, nothing recorded without a shift.
 - `test/estate_time_test.dart`: windows and stays in Lagos time.
+- `test/shuttle_test.dart`: the card hash vector (`118658b9...`), the home PIN (offline, 3 tries, lockout across restarts, `pin_checks` records), rides laid over the state (take, hand back, card pickup, parcel at drop-off, no-show, flag-down in one batch, "taken by"), gate, dispatch and card bookings, positions (only in a rider shift, 15 s, 2 hours, batches of 200, 409 and 403, sent before the shift end, refused location).
+- `test/rider_widget_test.dart`: the rider at 360dp and 320dp (face, PIN, motorcycle, one ride at a time, taken by, card, arrived, flag-down with the home PIN, end), day and night tokens, the guard's Shuttle to the home, the CSO's Shuttle tab, Book a ride and Issue a card.
 - `test/widget_test.dart`: name, consent block, wrong then right PIN, no camera, keypad, plate match, Let them in, Leaving, menu, end shift with handover (at 360dp and 320dp); No code confirmed and let in; said no and the CSO's walk-in decision; a CSO setting a PIN and landing on Now, People and Shifts.
 
 ### Integration check (optional)
@@ -162,8 +198,13 @@ flutter test
 checks the server stored it), opens a shift with a selfie and checks the upload, checks that the
 app's offline code equals the server's, admits with a plate (checked in the admin entry log),
 exits, runs the No code outcomes including a CSO walk-in decision, hands over to the CSO, opens
-the CSO's shift and reads the CSO overview, retries a batch (duplicates), and checks that a bad
-token wipes the phone. It uses its own database, `gatelog_guard_it`:
+the CSO's shift and reads the CSO overview, retries a batch (duplicates), then the shuttle: the
+CSO issues a card (and a second issue of it is refused with whose it is) and books a guest at the
+gate; the rider opens a shift on S1, takes the ride, picks up with the card, drops off (checked in
+`/v1/admin/rides`), checks the home PIN (the real hash, `GATELOG_IT_HOUSE_CODE`) and records a
+flag-down, positions go up and `/v1/admin/live` shows the rider where the phone was, and after the
+shift ends nothing more is recorded and the server answers 409; and checks that a bad token wipes
+the phone. It uses its own database, `gatelog_guard_it`:
 
 ```
 docker compose up -d                                   # repo root
@@ -176,7 +217,7 @@ SMS_WEBHOOK_SECRET=test-sms-secret MESSAGING_PROVIDER=console KEY_STORE=dev \
 .venv/Scripts/python ../guard/tool/it_seed.py          # prints pairing_code, code, admin_token
 cd ../guard
 GATELOG_IT_BASE_URL=http://127.0.0.1:8799 GATELOG_IT_PAIRING_CODE=<pairing_code> GATELOG_IT_CODE=<code> \
-  GATELOG_IT_ADMIN_TOKEN=<admin_token> flutter test test/integration
+  GATELOG_IT_ADMIN_TOKEN=<admin_token> GATELOG_IT_HOUSE_CODE=<house_code> flutter test test/integration
 ```
 
 Each seed run makes a new estate. A pairing code works once.

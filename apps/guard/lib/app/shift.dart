@@ -93,7 +93,8 @@ class HouseCodeNone extends HouseCodeCheck {
 /// Wrong PIN tries per person on this phone. Five in a row lock that person out for five
 /// minutes; a right PIN clears the count. Kept in the encrypted database.
 class PinTries {
-  PinTries([Map<String, dynamic>? json]) {
+  /// [maxTries]: wrong tries before the lock (5 for a guard's PIN, 3 for a home PIN).
+  PinTries([Map<String, dynamic>? json, this.maxTries = pinMaxTries]) {
     for (final e in (json ?? const {}).entries) {
       final v = e.value as Map<String, dynamic>;
       _fails[e.key] = (v['fails'] as num?)?.toInt() ?? 0;
@@ -114,7 +115,7 @@ class PinTries {
   DateTime? fail(String guardId, DateTime now) {
     if (_lockedUntil[guardId] != null && !_lockedUntil[guardId]!.isAfter(now)) _lockedUntil.remove(guardId);
     final n = (_fails[guardId] ?? 0) + 1;
-    if (n >= pinMaxTries) {
+    if (n >= maxTries) {
       _fails.remove(guardId);
       return _lockedUntil[guardId] = now.add(pinLockout);
     }
@@ -122,7 +123,9 @@ class PinTries {
     return null;
   }
 
-  int triesLeft(String guardId) => pinMaxTries - (_fails[guardId] ?? 0);
+  final int maxTries;
+
+  int triesLeft(String guardId) => maxTries - (_fails[guardId] ?? 0);
 
   void clear(String guardId) {
     _fails.remove(guardId);

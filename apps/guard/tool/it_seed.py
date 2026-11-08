@@ -6,8 +6,9 @@ app's integration test needs. Run from apps/api with its virtualenv:
     # start the API against that database (see apps/guard/README.md), then:
     .venv/Scripts/python ../guard/tool/it_seed.py --base http://127.0.0.1:8799
 
-Prints JSON: {"pairing_code", "code", "admin_token", ...}. Musa Ibrahim (guard) and Mr Bello (CSO)
-both have consent recorded and no PIN yet; 14B has a registered vehicle, KJA456XY. `code` is the six-digit code of a guest
+Prints JSON: {"pairing_code", "code", "admin_token", ...}. Musa Ibrahim (guard), Mr Bello (CSO) and
+Kunle Rider (shuttle rider) all have consent recorded and no PIN yet. The estate runs the shuttle:
+motorcycle S1, the Clubhouse as a place, the boundary drawn around them; 14B has a registered vehicle, KJA456XY. `code` is the six-digit code of a guest
 announced by SMS just now, computed server side, so the app's offline check is compared
 against the API's own derivation. Uses the dev key store and a separate database
 (gatelog_guard_it); never point it at anything real.
@@ -81,12 +82,23 @@ def seed(base: str) -> None:
     guard = httpx.post(f"{base}/v1/admin/guards", json={"name": "Musa Ibrahim", "consent_recorded": True}, headers=admin).json()
     cso = httpx.post(f"{base}/v1/admin/guards", json={"name": "Mr Bello", "role": "cso", "consent_recorded": True}, headers=admin).json()
     httpx.post(f"{base}/v1/admin/homes/{home['id']}/vehicles", json={"plate": "kja 456 xy", "description": "Black Corolla"}, headers=admin).raise_for_status()
+    # The estate shuttle: turned on, one motorcycle, a rider, a place inside a drawn boundary.
+    httpx.patch(f"{base}/v1/admin/estate/settings", json={"shuttle_enabled": True}, headers=admin).raise_for_status()
+    httpx.put(f"{base}/v1/admin/map/boundary", json={"ring": [[3.380, 6.600], [3.400, 6.600], [3.400, 6.620], [3.380, 6.620]]}, headers=admin).raise_for_status()
+    httpx.put(f"{base}/v1/admin/map/gates/{gate_id}", json={"lat": 6.6005, "lng": 3.39}, headers=admin).raise_for_status()
+    bike = httpx.post(f"{base}/v1/admin/shuttles", json={"label": "S1", "plate": "lnd 1 ev"}, headers=admin)
+    bike.raise_for_status()
+    place = httpx.post(f"{base}/v1/admin/places", json={"name": "Clubhouse", "lat": 6.61, "lng": 3.39}, headers=admin)
+    place.raise_for_status()
+    rider = httpx.post(f"{base}/v1/admin/guards", json={"name": "Kunle Rider", "role": "rider", "consent_recorded": True}, headers=admin).json()
+    house_code = httpx.post(f"{base}/v1/admin/homes/{home['id']}/house-code", headers=admin).json()["code"]
     device = httpx.post(f"{base}/v1/admin/devices", json={"gate_id": gate_id, "label": "Main gate phone"}, headers=admin).json()
     httpx.post(f"{base}/v1/webhooks/sms/test-sms-secret", json={"sender": phone, "message": "Tunde, for 2 hours"}).raise_for_status()
     with owner.begin() as c:
         v = c.execute(text("SELECT id, home_id, window_start, window_end, key_version FROM visits WHERE estate_id = :e AND code_issued"), {"e": estate_id}).first()
     code = codes.derive(key_store().get(uuid.UUID(estate_id), v.key_version), v.home_id, v.id, v.window_start, v.window_end) if v else None
     print(json.dumps({"pairing_code": device.get("pairing_code"), "code": code, "guard_id": guard["id"], "cso_id": cso["id"],
+                      "rider_id": rider["id"], "shuttle_id": bike.json()["id"], "place_id": place.json()["id"], "house_code": house_code,
                       "estate_id": estate_id, "admin_token": admin["Authorization"].split(" ", 1)[1]}))
 
 

@@ -4,26 +4,43 @@
 ///   GATELOG_IT_PAIRING_CODE   an unused pairing code from POST /v1/admin/devices
 ///   GATELOG_IT_CODE           the six-digit code of a guest expected now (computed server side)
 ///   GATELOG_IT_ADMIN_TOKEN    the estate admin's token, to check what the server stored
+///   GATELOG_IT_HOUSE_CODE     14B's shuttle house code (optional; the flag-down then uses it)
 ///
 /// `tool/it_seed.py` prints all of them. See README.md, "Integration check".
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gatelog_guard/app/controller.dart';
+import 'package:gatelog_guard/app/positions.dart';
+import 'package:gatelog_guard/app/rides.dart';
 import 'package:gatelog_guard/app/shift.dart';
 import 'package:gatelog_guard/core/estate_time.dart';
 import 'package:gatelog_guard/core/selfie_image.dart';
 import 'package:gatelog_guard/core/verify.dart';
 import 'package:gatelog_guard/data/secrets.dart';
+import 'package:gatelog_guard/data/shuttle.dart';
 import 'package:gatelog_guard/sync/api.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../support.dart';
+
+/// The rider phone's GPS, played back by the test.
+class _Gps implements LocationSource {
+  final _fixes = StreamController<PositionFix>.broadcast();
+  void at(DateTime t) => _fixes.add(PositionFix(lat: 6.61, lng: 3.39, accuracyM: 6, heading: 90, speed: 4, at: t));
+  @override
+  Future<LocationAccess> ensureAccess() async => LocationAccess.granted;
+  @override
+  Stream<PositionFix> watch(Duration every) => _fixes.stream;
+  @override
+  Future<void> openSettings() async {}
+}
 
 void main() {
   final env = Platform.environment;
@@ -31,6 +48,7 @@ void main() {
   final pairing = env['GATELOG_IT_PAIRING_CODE'];
   final code = env['GATELOG_IT_CODE'];
   final adminToken = env['GATELOG_IT_ADMIN_TOKEN'];
+  final houseCode = env['GATELOG_IT_HOUSE_CODE'];
   final skip = base == null || pairing == null || code == null || adminToken == null ? 'set GATELOG_IT_* to run against a live API' : null;
 
   Future<dynamic> admin(String path) async {
@@ -48,7 +66,8 @@ void main() {
     final api = HttpGateApi(base!);
     final secretStore = MemorySecretStore();
     // The real hasher: 60,000 iterations in an isolate, the hash the server must accept.
-    final c = GateController(store: store, secrets: Secrets(secretStore), api: api);
+    final gps = _Gps();
+    final c = GateController(store: store, secrets: Secrets(secretStore), api: api, location: gps);
     await c.init();
 
     // Pairing takes any case and a missing dash.
@@ -155,10 +174,123 @@ void main() {
     expect((await api.sync(token, body)).accepted, [id]);
     expect((await api.sync(token, body)).duplicates, [id]);
 
+    // --- The estate shuttle -----------------------------------------------------------------
+    expect(c.shuttle, isNotNull, reason: 'the seed turns the shuttle on');
+    final shuttleHome = c.snapshot!.home(home.id)!;
+    expect(shuttleHome.houseCodeHash, startsWith(r'pbkdf2-sha256$60000$'));
+    final adeyemi = shuttleHome.residents.first;
+
+    // The CSO issues Mrs Adeyemi's card (only the hash leaves the phone), and books a guest at
+    // the gate. The same card again is refused with whose it is.
+    const uid = '04:A2:1B:7C:55:80';
+    await c.issueCard(uid: uid, resident: adeyemi);
+    await c.bookAtGate(home: shuttleHome, kind: RideKind.guest, passenger: 'Tunde');
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    expect(c.cardFor(uid)?.residentId, adeyemi.id, reason: 'the card came back in /state, hashed');
+    final again = await c.issueCard(uid: uid, resident: adeyemi);
+    await c.idle();
+    await c.syncNow();
+    final refused = await c.queuedItem(again);
+    expect(refused!.isRejected, isTrue);
+    expect(refused.reason, contains("already Mrs Adeyemi's"));
+    await c.dismissRejected(again);
+    final gateRide = c.waitingRides.singleWhere((r) => r.passenger == 'Tunde');
+    expect(gateRide.source, 'gate');
+    expect(gateRide.pickup.kind, 'gate');
     await c.endShift();
     await c.idle();
+
+    // The rider: PIN, the motorcycle, positions every 15 seconds while the shift is open.
+    final kunle = c.snapshot!.guards.firstWhere((g) => g.isRider);
+    await c.setGuardPin(kunle.id, '864209');
+    final bike = c.shuttle!.shuttles.single;
+    await c.openShift(kunle.id, shuttleId: bike.id);
+    final riderShift = c.shift!.id;
+    await c.idle();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(c.positions!.running, isTrue);
+    final t0 = DateTime.now().toUtc();
+    for (var i = 0; i < 3; i++) {
+      gps.at(t0.add(Duration(seconds: 15 * i)));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    await c.syncNow();
+    noneRejected(c);
+    expect(await store.positions(), isEmpty, reason: 'sent');
+
+    // Book at the gate -> the rider takes it -> picked up with the card -> dropped off.
+    await c.acceptRide(c.rides.ride(gateRide.id)!);
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    expect(c.rideNotice, isNull);
+    expect(c.myRides.single.id, gateRide.id, reason: 'the pulled state says Kunle has it');
+    final card = c.cardFor('04a21b7c5580')!;
+    await c.pickUp(c.myRides.single, who: RideConfirm.card(cardId: card.id, residentId: card.residentId));
+    await c.idle();
+    await c.dropOff(c.rides.ride(gateRide.id)!);
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    final done = await admin('/v1/admin/rides/${gateRide.id}') as Map<String, dynamic>;
+    expect(done['state'], 'done');
+    expect(done['rider'], 'Kunle Rider');
+    expect(done['shuttle'], 'S1');
+    expect(done['confirmed_by'], 'card');
+    expect(done['confirmed_resident'], 'Mrs Adeyemi');
+    expect([for (final e in done['events'] as List) e['event']], ['accept', 'pick_up', 'drop_off']);
+
+    // Flagged down: the house code (checked offline, the real hash), the ride and its pickup.
+    RideConfirm who = const RideConfirm.rider();
+    if (houseCode != null) {
+      expect(await c.checkHouseCode(home.id, houseCode), isA<HouseCodeOk>());
+      who = RideConfirm.houseCode(residentId: adeyemi.id);
+    }
+    final stops = rideStops(c.snapshot!, home: shuttleHome);
+    final flagId = await c.newFlagRide(home: shuttleHome, pickup: stops.first, dropoff: stops.firstWhere((s) => s.kind == 'place'), who: who);
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    expect(c.view.queued, 0, reason: 'the pin_checks record went up with the ride');
+    final flag = await admin('/v1/admin/rides/$flagId') as Map<String, dynamic>;
+    expect(flag['source'], 'flag');
+    expect(flag['state'], 'picked_up');
+    expect(flag['to'], 'Clubhouse');
+    expect(flag['confirmed_by'], houseCode == null ? 'rider' : 'house_code');
+    expect(c.myRides.single.id, flagId);
+
+    // The estate map: the admin sees the rider where the phone was.
+    final live = await admin('/v1/admin/live') as Map<String, dynamic>;
+    final onMap = (live['shuttles'] as List).cast<Map<String, dynamic>>().singleWhere((s) => s['shift_id'] == riderShift);
+    expect(onMap['rider'], 'Kunle Rider');
+    expect(onMap['shuttle'], 'S1');
+    expect(onMap['lat'], 6.61);
+    expect(onMap['lng'], 3.39);
+    expect((onMap['trail'] as List).length, 3);
+    expect((onMap['ride'] as Map)['id'], flagId);
+
+    // Ending the rider's shift stops the reports at once; the server refuses any more.
+    await c.endShift();
+    expect(c.positions!.running, isFalse);
+    gps.at(t0.add(const Duration(seconds: 60)));
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    expect(await store.positions(), isEmpty, reason: 'nothing recorded after the shift ended');
+    final after = await http.post(
+      Uri.parse('$base/v1/device/positions'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({'shift_id': riderShift, 'points': [PositionFix(lat: 6.61, lng: 3.39, at: DateTime.now().toUtc()).toJson()]}),
+    );
+    expect(after.statusCode, 409);
+    final liveAfter = await admin('/v1/admin/live') as Map<String, dynamic>;
+    expect((liveAfter['shuttles'] as List).where((s) => s['shift_id'] == riderShift), isEmpty);
+
+    await c.idle();
     await store.db.close();
-  }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 4)));
 
   test('a revoked or unknown token wipes the phone', () async {
     initTimeZones();

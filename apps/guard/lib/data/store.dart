@@ -22,9 +22,12 @@ abstract final class OutboxKind {
   static const ride = 'rides';
   static const rideEvent = 'ride_events';
 
+  /// A home PIN checked on this phone, right or wrong (never the PIN).
+  static const pinCheck = 'pin_checks';
+
   /// PINs and shifts first: the server wants a shift before the records made during it. A ride
   /// goes before its events (a flagged-down ride and its pickup travel in the same batch).
-  static const syncKinds = [pin, shift, card, ride, rideEvent, visit, callback, entry, exit, rollupCheck];
+  static const syncKinds = [pin, shift, card, ride, rideEvent, pinCheck, visit, callback, entry, exit, rollupCheck];
 }
 
 abstract final class OutboxStatus {

@@ -8,6 +8,8 @@ import 'data/open.dart';
 import 'data/secrets.dart';
 import 'data/store.dart';
 import 'sync/api.dart';
+import 'sync/card_reader.dart';
+import 'sync/location.dart';
 import 'sync/push.dart';
 import 'ui/app.dart';
 
@@ -31,6 +33,10 @@ Future<void> main() async {
     api: HttpGateApi(apiBaseUrl),
     push: push,
     connectivity: connectivity,
+    // Rider shifts only: the position every 15 seconds (a foreground service with its
+    // notification) and estate cards over NFC.
+    location: GeolocatorLocationSource(),
+    cardReader: NfcCardReader(),
   );
   await controller.init();
   controller.start();

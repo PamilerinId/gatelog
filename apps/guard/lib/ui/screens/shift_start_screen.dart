@@ -12,42 +12,32 @@ import '../../data/models.dart';
 import '../app.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'rider_start_screen.dart';
 
-/// Start a shift: pick your name, your PIN, a selfie. A shuttle rider then picks the motorcycle.
+/// Start a shift: pick your name, your PIN, a selfie. Shuttle riders start on their own screen,
+/// built to the handoff design (tap your face, PIN, motorcycle).
 class ShiftStartScreen extends StatefulWidget {
   const ShiftStartScreen({super.key});
   @override
   State<ShiftStartScreen> createState() => _ShiftStartScreenState();
 }
 
-enum _Step { name, pin, selfie, bike, opening }
+enum _Step { name, pin, selfie, opening }
 
 class _ShiftStartScreenState extends State<ShiftStartScreen> {
   _Step _step = _Step.name;
   Guard? _who;
-  List<int>? _jpeg; // a rider's selfie, held while they pick the motorcycle
+  bool _rider = false;
 
   void _back() => setState(() {
     _step = _Step.name;
     _who = null;
-    _jpeg = null;
   });
 
-  Future<void> _selfieDone(List<int>? jpeg) async {
-    if (_who!.isRider) {
-      setState(() {
-        _jpeg = jpeg;
-        _step = _Step.bike;
-      });
-      return;
-    }
-    await _open(jpeg);
-  }
-
-  Future<void> _open(List<int>? jpeg, {String? shuttleId}) async {
+  Future<void> _open(List<int>? jpeg) async {
     final c = GateScope.read(context);
     setState(() => _step = _Step.opening);
-    await c.openShift(_who!.id, selfieJpeg: jpeg, shuttleId: shuttleId);
+    await c.openShift(_who!.id, selfieJpeg: jpeg);
   }
 
   @override
@@ -55,6 +45,7 @@ class _ShiftStartScreenState extends State<ShiftStartScreen> {
     final c = GateScope.of(context);
     final title = c.gateName ?? c.estateName ?? 'Gatelog Gate';
     if (c.snapshot == null) return _Loading(title: title);
+    if (_rider && c.shuttle != null) return RiderStartScreen(onCancel: () => setState(() => _rider = false));
     return PopScope(
       canPop: _step == _Step.name,
       onPopInvokedWithResult: (didPop, _) {
@@ -73,10 +64,10 @@ class _ShiftStartScreenState extends State<ShiftStartScreen> {
                 _who = g;
                 _step = _Step.pin;
               }),
+              onRider: () => setState(() => _rider = true),
             ),
             _Step.pin => _PinStep(guard: _who!, onDone: () => setState(() => _step = _Step.selfie)),
-            _Step.selfie => _SelfieStep(guard: _who!, onDone: _selfieDone),
-            _Step.bike => _BikeStep(guard: _who!, onPick: (id) => _open(_jpeg, shuttleId: id)),
+            _Step.selfie => _SelfieStep(guard: _who!, onDone: _open),
             _Step.opening => const Center(child: CircularProgressIndicator()),
           },
         ),
@@ -123,13 +114,16 @@ class _Loading extends StatelessWidget {
 }
 
 class _NamePicker extends StatelessWidget {
-  const _NamePicker({required this.onPick});
+  const _NamePicker({required this.onPick, required this.onRider});
   final void Function(Guard) onPick;
+  final VoidCallback onRider;
 
   @override
   Widget build(BuildContext context) {
     final c = GateScope.of(context);
-    final people = c.snapshot!.guards;
+    // Riders start on the rider screen (only where the estate runs a shuttle).
+    final people = [for (final g in c.snapshot!.guards) if (!g.isRider) g];
+    final riders = c.shuttle != null && c.snapshot!.guards.any((g) => g.isRider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -142,17 +136,6 @@ class _NamePicker extends StatelessWidget {
           OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(72), alignment: Alignment.centerLeft),
             onPressed: () {
-              if (g.isRider && c.shuttle == null) {
-                showDialog<void>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text(g.name),
-                    content: const Text('The estate shuttle is not running on Gatelog. Ask the estate admin.', style: TextStyle(fontSize: 19)),
-                    actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-                  ),
-                );
-                return;
-              }
               if (!g.consent) {
                 showDialog<void>(
                   context: context,
@@ -168,23 +151,18 @@ class _NamePicker extends StatelessWidget {
             },
             child: Row(
               children: [
-                Icon(
-                  g.isCso ? Icons.shield_outlined : (g.isRider ? Icons.two_wheeler : Icons.badge_outlined),
-                  size: 30,
-                  color: g.consent ? GateColors.navy : GateColors.line,
-                ),
+                Icon(g.isCso ? Icons.shield_outlined : Icons.badge_outlined, size: 30, color: g.consent ? GateColors.navy : GateColors.line),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(g.name, style: TextStyle(fontSize: 22, color: g.consent ? GateColors.ink : Colors.black54)),
-                      if (g.isCso || g.isRider || !g.consent)
+                      if (g.isCso || !g.consent)
                         Wrap(
                           spacing: 6,
                           children: [
                             if (g.isCso) const _Tag('CSO'),
-                            if (g.isRider) const _Tag('Shuttle rider'),
                             if (!g.consent) const _Tag('No consent form', color: GateColors.warn),
                           ],
                         ),
@@ -193,6 +171,15 @@ class _NamePicker extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (riders) ...[
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: GateColors.ink, minimumSize: const Size.fromHeight(72)),
+            icon: const Icon(Icons.two_wheeler, size: 30),
+            label: const Text('Shuttle rider'),
+            onPressed: onRider,
           ),
           const SizedBox(height: 12),
         ],
@@ -363,50 +350,6 @@ class _PinStepState extends State<_PinStep> {
         const SizedBox(height: 8),
       ],
     );
-  }
-}
-
-/// A rider: which motorcycle today. One tap starts the shift.
-class _BikeStep extends StatelessWidget {
-  const _BikeStep({required this.guard, required this.onPick});
-  final Guard guard;
-  final void Function(String? shuttleId) onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final bikes = GateScope.of(context).shuttle?.shuttles ?? const [];
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Text(guard.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-      const Text('Which motorcycle are you on?', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 12),
-      for (final b in bikes) ...[
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(76), alignment: Alignment.centerLeft),
-          onPressed: () => onPick(b.id),
-          child: Row(children: [
-            const Icon(Icons.two_wheeler, size: 32),
-            const SizedBox(width: 14),
-            Expanded(child: Text(b.label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800))),
-            if (b.plate != null && b.plate!.isNotEmpty) Text(b.plate!.toUpperCase(), style: const TextStyle(fontSize: 17, letterSpacing: 1)),
-          ]),
-        ),
-        const SizedBox(height: 12),
-      ],
-      if (bikes.isEmpty) ...[
-        const Text('No motorcycles are set up yet. Ask the estate admin.', style: TextStyle(fontSize: 18)),
-        const SizedBox(height: 12),
-        BigButton(label: 'Start without one', icon: Icons.login, color: GateColors.navy, onPressed: () => onPick(null)),
-      ],
-      const SizedBox(height: 8),
-      LineCard(
-        color: GateColors.infoWash,
-        border: GateColors.info,
-        child: const Text(
-          'While your shift is open, this phone tells the estate where the shuttle is, every 15 seconds. It stops when you end your shift.',
-          style: TextStyle(fontSize: 17),
-        ),
-      ),
-    ]);
   }
 }
 

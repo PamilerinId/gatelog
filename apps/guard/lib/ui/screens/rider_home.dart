@@ -6,15 +6,17 @@ import '../../app/controller.dart';
 import '../../app/positions.dart';
 import '../../app/rides.dart';
 import '../../core/estate_time.dart';
+import '../../data/models.dart';
 import '../../data/shuttle.dart';
 import '../app.dart';
-import '../theme.dart';
-import '../widgets.dart';
-import 'guard_home.dart';
+import '../kit.dart';
+import 'directory_screen.dart';
 import 'shuttle_screens.dart';
+import 'sync_screen.dart';
 
-/// The rider view: the ride queue and one button for a flagged-down ride. Nothing else.
-/// Refreshes `/state` every 15 seconds while it shows (a 304 when nothing changed).
+/// The rider view, to the handoff's rules: one ride at a time. A ride waiting: "Take it?" Yes or
+/// No. A ride taken: tap their card (or No card, then the home PIN). Under way: "Did they
+/// arrive?" Yes or No. Refreshes `/state` every 15 seconds while it shows.
 class RiderHome extends StatefulWidget {
   const RiderHome({super.key});
   @override
@@ -23,6 +25,11 @@ class RiderHome extends StatefulWidget {
 
 class _RiderHomeState extends State<RiderHome> {
   Timer? _refresh;
+
+  /// Rides this rider said No to, so the next one shows. Cleared by "See them again".
+  final Set<String> _skipped = {};
+  String? _spokenRide;
+  String? _spokenNotice;
 
   @override
   void initState() {
@@ -37,86 +44,245 @@ class _RiderHomeState extends State<RiderHome> {
     super.dispose();
   }
 
+  /// Says a thing once, when it first shows.
+  void _announce(String key, String words, {bool notice = false}) {
+    if (notice ? _spokenNotice == key : _spokenRide == key) return;
+    notice ? _spokenNotice = key : _spokenRide = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) => speak(words));
+  }
+
   Future<void> _newRide() async {
     final c = GateScope.read(context);
-    final who = await askWhoRode(context);
+    final who = await askWhoRode(context, label: 'New ride');
     if (who == null || !mounted) return;
-    final stops = rideStops(c.snapshot!, home: who.home);
-    final from = await pickStop(context, title: 'Where are you picking them up?', stops: stops);
+    final home = who.home;
+    final stops = rideStops(c.snapshot!, home: home);
+    final from = await askEach<RideStop>(
+      context,
+      items: stops,
+      label: 'New ride',
+      question: (s) => s.kind == 'home' ? 'Picking up at their house?' : 'Picking up at ${s.label}?',
+      about: (s) => stopCard(home, s),
+    );
     if (from == null || !mounted) return;
-    final to = await pickStop(context, title: 'Where are they going?', sub: 'From ${from.label}', stops: [for (final s in stops) if (!s.sameAs(from)) s]);
+    if (from.value == null) {
+      speak('Ask the CSO to book this ride.');
+      return;
+    }
+    final to = await askEach<RideStop>(
+      context,
+      items: [
+        for (final s in stops)
+          if (!s.sameAs(from.value!)) s,
+      ],
+      label: 'New ride',
+      question: (s) => s.kind == 'home' ? 'Going to their house?' : 'Going to ${s.label}?',
+      about: (s) => stopCard(home, s),
+    );
     if (to == null || !mounted) return;
-    await c.newFlagRide(home: who.home, pickup: from, dropoff: to, who: who.confirm);
-    c.showNotice('Picked up: ${from.label} to ${to.label}');
+    if (to.value == null) {
+      speak('Ask the CSO to book this ride.');
+      return;
+    }
+    await c.newFlagRide(home: home, pickup: from.value!, dropoff: to.value!, who: who.confirm);
+    speak('Ride started.');
+  }
+
+  Future<void> _menu() async {
+    final c = GateScope.read(context);
+    final pick = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.of(context).bg,
+      builder: (ctx) => KitSurface(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Pill(label: 'Emergency numbers', icon: Icons.warning_amber_rounded, color: Palette.of(ctx).noText, onTap: () => Navigator.pop(ctx, 'numbers')),
+                const SizedBox(height: 10),
+                Pill(label: 'Sync', icon: Icons.sync, onTap: () => Navigator.pop(ctx, 'sync')),
+                const SizedBox(height: 10),
+                Pill(label: 'End my shift', icon: Icons.logout, onTap: () => Navigator.pop(ctx, 'end')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || pick == null) return;
+    final nav = Navigator.of(context);
+    switch (pick) {
+      case 'numbers':
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: const Text('Emergency numbers')),
+              body: const SafeArea(child: DirectoryScreen()),
+            ),
+          ),
+        );
+      case 'sync':
+        nav.push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
+      case 'end':
+        await _end(c);
+    }
+  }
+
+  /// "End your shift?" then, for each other rider, "Is Ade taking over?".
+  Future<void> _end(GateController c) async {
+    final open = c.myRides.where((r) => r.state == RideState.accepted).length;
+    final yes = await askYesNo(
+      context,
+      label: 'End shift',
+      question: 'End your shift?',
+      say: open > 0 ? 'Rides you took and have not picked up go back to the queue. End your shift?' : 'End your shift?',
+      about: open > 0 ? Text('Rides you took and have not picked up go back to the queue.', style: mutedStyle(context, 18)) : null,
+    );
+    if (yes != true || !mounted) return;
+    final next = await askEach<Guard>(context, items: c.takeoverCandidates, label: 'End shift', question: (g) => 'Is ${g.name} taking over?');
+    if (next == null) return;
+    await c.endShift(handedTo: next.value?.id);
+    speak('Shift ended.');
   }
 
   @override
   Widget build(BuildContext context) {
     final c = GateScope.of(context);
+    final p = Palette.of(context);
     final mine = c.myRides;
     final waiting = c.waitingRides;
-    return Scaffold(
-      appBar: const GateAppBar(),
-      body: SafeArea(
-        child: Column(children: [
-          if (c.locationProblem != null) _LocationStrip(problem: c.locationProblem!),
-          if (c.rideNotice != null) _TakenStrip(message: c.rideNotice!, onOk: c.clearRideNotice),
-          const _RiderNotice(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: c.syncNow,
-              child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
-                if (mine.isNotEmpty) ...[
-                  _Section(mine.length == 1 ? 'Your ride' : 'Your rides (${mine.length})'),
-                  for (final r in mine) RideCard(ride: r, mine: true),
-                  const SizedBox(height: 6),
-                ],
-                _Section(waiting.isEmpty ? 'Waiting' : 'Waiting (${waiting.length})'),
-                if (waiting.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text('No rides waiting.', style: TextStyle(fontSize: 20)),
-                  ),
-                for (final r in waiting) RideCard(ride: r, mine: false),
-              ]),
-            ),
+    final queue = [
+      for (final r in waiting)
+        if (!_skipped.contains(r.id)) r,
+    ];
+    final bike = c.bike;
+    final now = c.time.now();
+    String wait(Ride r) => waitLabel(r.wantedAt, now, (d) => hhmm(c.time.of(d)));
+
+    final Widget body;
+    String aloud;
+    if (c.rideNotice != null) {
+      aloud = c.rideNotice!;
+      _announce(aloud, aloud, notice: true);
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ResultMark(icon: Icons.close, bad: true, text: c.rideNotice!),
+          const SizedBox(height: 20),
+          BigTile(label: 'OK', icon: Icons.check, primary: true, height: 96, onTap: c.clearRideNotice),
+        ],
+      );
+    } else if (mine.isNotEmpty) {
+      final r = mine.first;
+      aloud = '${rideWords(c.snapshot, r, wait(r))} ${_MyRide.question(r)}';
+      _announce('${r.id}:${r.state}', _MyRide.question(r));
+      body = _MyRide(key: ValueKey('${r.id}:${r.state}'), ride: r);
+    } else if (queue.isNotEmpty) {
+      final r = queue.first;
+      aloud = '${rideWords(c.snapshot, r, wait(r))} Take it?';
+      _announce(r.id, aloud);
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RideSummary(ride: r, counter: '${waiting.indexOf(r) + 1} OF ${waiting.length}'),
+          const SizedBox(height: 8),
+          const Headline('Take it?', center: true),
+          YesNo(
+            onYes: () async {
+              await c.acceptRide(r);
+              speak('Ride taken.');
+            },
+            onNo: () => setState(() => _skipped.add(r.id)),
           ),
+        ],
+      );
+    } else {
+      aloud = waiting.isEmpty ? 'No rides now.' : 'No more rides.';
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.two_wheeler, size: 96, color: p.muted),
+          Headline(aloud, center: true),
+          if (waiting.isNotEmpty) Pill(label: 'See them again', icon: Icons.replay, onTap: () => setState(_skipped.clear)),
+        ],
+      );
+    }
+
+    return KitScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: GateColors.navy, minimumSize: const Size.fromHeight(76), textStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              icon: const Icon(Icons.add, size: 32),
-              label: const Text('New ride'),
-              onPressed: _newRide,
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: p.surface, shape: BoxShape.circle),
+                  child: const Icon(Icons.two_wheeler, size: 24),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c.guard?.name ?? '-',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontFamily: inter, fontSize: 17, fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        [bike?.label ?? 'SHUTTLE', if (c.lastError != null) 'NO NETWORK'].join(' · ').toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: monoStyle(context, 12, color: c.lastError != null ? p.warnText : p.muted, weight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                RoundButton(icon: Icons.volume_up_outlined, label: 'Read aloud', onTap: () => speak(aloud)),
+                const SizedBox(width: 8),
+                RoundButton(icon: Icons.more_vert, label: 'Menu', onTap: _menu),
+              ],
             ),
           ),
-        ]),
+          if (c.locationProblem != null) _LocationStrip(problem: c.locationProblem!),
+          if (c.notice != null && c.now().difference(c.notice!.at) < const Duration(seconds: 8))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(c.notice!.message, textAlign: TextAlign.center, style: mutedStyle(context, 16)),
+            ),
+          Expanded(
+            child: Center(child: SingleChildScrollView(child: body)),
+          ),
+          const SizedBox(height: 10),
+          Pill(label: 'New ride', icon: Icons.add, onTap: _newRide),
+        ],
       ),
     );
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-        child: Text(text, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: GateColors.navy)),
-      );
-}
-
-/// One ride: kind and how long it has waited, from, to, who or what, the note, and the one or
-/// two things the rider can do next.
-class RideCard extends StatefulWidget {
-  const RideCard({super.key, required this.ride, required this.mine});
+/// The rider's own ride: the one next step.
+class _MyRide extends StatefulWidget {
+  const _MyRide({super.key, required this.ride});
   final Ride ride;
-  final bool mine;
+
+  static String question(Ride r) =>
+      r.state == RideState.accepted ? (r.isDelivery ? 'Got the parcel?' : 'Tap their card.') : (r.isDelivery ? 'Did the parcel arrive?' : 'Did they arrive?');
+
   @override
-  State<RideCard> createState() => _RideCardState();
+  State<_MyRide> createState() => _MyRideState();
 }
 
-class _RideCardState extends State<RideCard> {
+class _MyRideState extends State<_MyRide> {
   bool _busy = false;
 
   Future<void> _do(Future<void> Function() action) async {
@@ -129,102 +295,87 @@ class _RideCardState extends State<RideCard> {
     }
   }
 
-  Future<void> _pickUp(GateController c, Ride r) async {
-    if (r.isDelivery) {
-      await c.pickUp(r);
-      c.showNotice('Parcel collected: ${r.passenger ?? r.dropoff.label}');
-      return;
-    }
-    final who = await askWhoRode(context, home: c.snapshot?.home(r.homeId), fromGate: r.source == 'gate');
-    if (who == null) return;
-    await c.pickUp(r, who: who.confirm);
-    c.showNotice('Picked up: ${r.pickup.label} to ${r.dropoff.label}');
-  }
-
   Future<void> _dropOff(GateController c, Ride r) async {
     if (r.isDelivery) {
-      final who = await askWhoRode(context, home: c.snapshot?.home(r.homeId), parcel: true);
+      final who = await askWhoRode(context, home: c.snapshot?.home(r.homeId), title: 'Tap their card', label: 'Who took the parcel');
       if (who == null) return;
       await c.dropOff(r, who: who.confirm);
     } else {
       await c.dropOff(r);
     }
+    speak('Dropped off.');
     c.showNotice('Dropped off at ${r.dropoff.label}');
   }
 
   Future<void> _noShow(GateController c, Ride r) async {
-    final ok = await confirm(context, 'Nobody came?', body: 'The ride closes as a no-show.', yes: 'No-show', no: 'Back');
-    if (ok) await c.noShow(r);
+    final yes = await askYesNo(context, label: 'Nobody came', question: 'Nobody came?', say: 'Nobody came? The ride closes.');
+    if (yes == true) {
+      await c.noShow(r);
+      speak('Ride closed.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = GateScope.of(context);
+    final p = Palette.of(context);
     final r = widget.ride;
-    final t = c.time;
-    final under = r.state == RideState.pickedUp;
-    final wait = under ? 'Under way' : waitLabel(r.wantedAt, t.now(), (d) => hhmm(t.of(d)));
-    final who = r.passenger ?? (r.residentId == null ? null : c.snapshot?.resident(r.residentId)?.name);
-    Text place(String label, String text) => Text.rich(
-          TextSpan(children: [
-            TextSpan(text: '$label  ', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: GateColors.navy)),
-            TextSpan(text: text, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-          ]),
-        );
-    final actions = <Widget>[];
-    if (!widget.mine) {
-      actions.add(BigButton(label: 'Take it', icon: Icons.check, color: GateColors.go, onPressed: _busy ? null : () => _do(() => c.acceptRide(r))));
-    } else if (r.state == RideState.accepted) {
-      actions.addAll([
-        BigButton(
-          label: r.isDelivery ? 'Parcel collected' : 'Picked up',
-          icon: Icons.two_wheeler,
-          color: GateColors.go,
-          onPressed: _busy ? null : () => _do(() => _pickUp(c, r)),
+    final home = c.snapshot?.home(r.homeId);
+    final secondary = Row(
+      children: [
+        Expanded(
+          child: Pill(
+            label: 'Hand back',
+            onTap: _busy
+                ? null
+                : () => _do(() async {
+                    await c.releaseRide(r);
+                    speak('Ride handed back.');
+                  }),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Pill(label: 'Nobody came', color: p.noText, onTap: _busy ? null : () => _do(() => _noShow(c, r))),
+        ),
+      ],
+    );
+    final children = <Widget>[RideSummary(ride: r), const SizedBox(height: 8)];
+    if (r.state == RideState.accepted && !r.isDelivery) {
+      children.addAll([
+        WhoPanel(
+          home: home,
+          fromGate: r.source == 'gate',
+          onDone: (who) => _do(() async {
+            await c.pickUp(r, who: who.confirm);
+            speak('Picked up.');
+          }),
         ),
         const SizedBox(height: 10),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64)),
-              onPressed: _busy ? null : () => _do(() => c.releaseRide(r)),
-              child: const Text('Hand back'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(64), foregroundColor: GateColors.stop, side: const BorderSide(color: GateColors.stop, width: 2)),
-              onPressed: _busy ? null : () => _do(() => _noShow(c, r)),
-              child: const Text('No-show'),
-            ),
-          ),
-        ]),
+        secondary,
+      ]);
+    } else if (r.state == RideState.accepted) {
+      children.addAll([
+        const Headline('Got the parcel?', center: true),
+        YesNo(
+          onYes: _busy
+              ? null
+              : () => _do(() async {
+                  await c.pickUp(r);
+                  speak('Parcel collected.');
+                }),
+          onNo: () => speak('Tap Yes when you have the parcel.'),
+        ),
+        const SizedBox(height: 10),
+        secondary,
       ]);
     } else {
-      actions.add(BigButton(label: 'Dropped off', icon: Icons.flag, color: GateColors.go, onPressed: _busy ? null : () => _do(() => _dropOff(c, r))));
+      children.addAll([
+        Headline(_MyRide.question(r), center: true),
+        YesNo(onYes: _busy ? null : () => _do(() => _dropOff(c, r)), onNo: () => speak('Tap Yes when you get there.')),
+      ]);
     }
-    return LineCard(
-      color: widget.mine ? GateColors.goWash : null,
-      border: widget.mine ? GateColors.go : null,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Icon(switch (r.kind) { RideKind.delivery => Icons.inventory_2_outlined, RideKind.guest => Icons.person_outline, _ => Icons.home_outlined }, size: 26, color: GateColors.navy),
-          const SizedBox(width: 8),
-          Expanded(child: Text(rideKindLabel(r.kind), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: GateColors.navy))),
-          Flexible(
-            child: Text(wait, textAlign: TextAlign.end, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: under ? GateColors.go : GateColors.warn)),
-          ),
-        ]),
-        const SizedBox(height: 6),
-        place('From', r.pickup.label),
-        place('To', r.dropoff.label),
-        if (who != null && who.isNotEmpty) Text(r.isDelivery ? 'Parcel: $who' : who, style: const TextStyle(fontSize: 18)),
-        if (r.note != null && r.note!.isNotEmpty) Text('Note: ${r.note}', style: const TextStyle(fontSize: 17, fontStyle: FontStyle.italic)),
-        const SizedBox(height: 10),
-        ...actions,
-      ]),
-    );
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
 }
 
@@ -233,79 +384,27 @@ class _LocationStrip extends StatelessWidget {
   final LocationAccess problem;
 
   @override
-  Widget build(BuildContext context) => Container(
-        color: GateColors.warnWash,
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(children: [
-          const Icon(Icons.location_off, color: GateColors.warn, size: 28),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              problem == LocationAccess.serviceOff ? 'Location is off on this phone.' : 'Location is not allowed. The estate cannot see the shuttle.',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-            ),
-          ),
-          TextButton(onPressed: GateScope.read(context).retryLocation, child: const Text('Turn on')),
-        ]),
-      );
-}
-
-/// "Taken by Musa": the ride went to another rider.
-class _TakenStrip extends StatelessWidget {
-  const _TakenStrip({required this.message, required this.onOk});
-  final String message;
-  final VoidCallback onOk;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        color: GateColors.stopWash,
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(children: [
-          const Icon(Icons.info_outline, color: GateColors.stop, size: 28),
-          const SizedBox(width: 8),
-          Expanded(child: Text(message, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: GateColors.stop))),
-          TextButton(onPressed: onOk, child: const Text('OK')),
-        ]),
-      );
-}
-
-/// What was just recorded, for 8 seconds.
-class _RiderNotice extends StatefulWidget {
-  const _RiderNotice();
-  @override
-  State<_RiderNotice> createState() => _RiderNoticeState();
-}
-
-class _RiderNoticeState extends State<_RiderNotice> {
-  static const _showFor = Duration(seconds: 8);
-  Timer? _timer;
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final c = GateScope.of(context);
-    final n = c.notice;
-    final left = n == null ? Duration.zero : _showFor - c.now().difference(n.at);
-    if (n == null || left <= Duration.zero) return const SizedBox.shrink();
-    _timer?.cancel();
-    _timer = Timer(left, () {
-      if (mounted) setState(() {});
-    });
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(color: GateColors.navy, borderRadius: BorderRadius.circular(8)),
-      child: Row(children: [
-        const Icon(Icons.check_circle, color: Colors.white),
-        const SizedBox(width: 8),
-        Expanded(child: Text(n.message, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700))),
-      ]),
+    final p = Palette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: KitCard(
+        border: p.warn,
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(Icons.location_off, color: p.warnText, size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                problem == LocationAccess.serviceOff ? 'Location is off' : 'Location not allowed',
+                style: TextStyle(fontFamily: inter, fontSize: 18, fontWeight: FontWeight.w700, color: p.warnText),
+              ),
+            ),
+            Pill(label: 'Turn on', onTap: GateScope.read(context).retryLocation),
+          ],
+        ),
+      ),
     );
   }
 }

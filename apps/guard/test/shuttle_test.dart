@@ -74,7 +74,10 @@ void main() {
   final hash = cardHash('e1', cardUid);
   final houseHash = makePinHash('4821', iterations: 1000);
 
-  Future<List<OutboxItem>> items(String kind) async => [for (final i in await store.outbox()) if (i.kind == kind) i];
+  Future<List<OutboxItem>> items(String kind) async => [
+    for (final i in await store.outbox())
+      if (i.kind == kind) i,
+  ];
 
   void serve(Map<String, dynamic> shuttle) {
     api.state = sampleState(shuttle: shuttle, houseCodeHash: houseHash);
@@ -86,7 +89,16 @@ void main() {
     now = DateTime.utc(2026, 10, 21, 9);
     store = memoryStore();
     api = FakeApi();
-    serve(shuttle ?? sampleShuttle(cardHash: hash, rides: [sampleRide(rideA), sampleRide(rideB, kind: 'delivery', source: 'gate', fromHome: false, passenger: 'Jumia parcel')]));
+    serve(
+      shuttle ??
+          sampleShuttle(
+            cardHash: hash,
+            rides: [
+              sampleRide(rideA),
+              sampleRide(rideB, kind: 'delivery', source: 'gate', fromHome: false, passenger: 'Jumia parcel'),
+            ],
+          ),
+    );
     location = FakeLocation();
     c = GateController(store: store, secrets: Secrets(MemorySecretStore()), api: api, clock: () => now, pins: fastPins, location: location);
     await c.init();
@@ -136,27 +148,43 @@ void main() {
     });
   });
 
-  group('house code', () {
-    setUp(boot);
-
-    test('checked offline like a PIN; five wrong tries on one home: wait five minutes', () async {
+  group('home PIN', () {
+    setUp(() async {
+      await boot();
       await c.openShift('ri1', shuttleId: 'bike1');
+      await c.idle();
+    });
+
+    test('checked offline like a PIN; three wrong tries on one home, then ask them to call the gate; every check is a pin_checks record', () async {
       api.syncError = NetworkException('offline');
       api.stateError = NetworkException('offline');
       expect(await c.checkHouseCode('h1', '4821'), isA<HouseCodeOk>());
-      for (var left = 4; left >= 1; left--) {
+      for (var left = 2; left >= 1; left--) {
         expect((await c.checkHouseCode('h1', '0000') as HouseCodeWrong).triesLeft, left);
       }
       final locked = await c.checkHouseCode('h1', '0000');
       expect(locked, isA<HouseCodeLocked>());
       expect((locked as HouseCodeLocked).until, now.add(const Duration(minutes: 5)));
-      expect(await c.checkHouseCode('h1', '4821'), isA<HouseCodeLocked>(), reason: 'even the right code waits');
+      expect(await c.checkHouseCode('h1', '4821'), isA<HouseCodeLocked>(), reason: 'even the right PIN waits');
+
+      final checks = [for (final i in await items(OutboxKind.pinCheck)) i.payload];
+      expect(checks.map((p) => p['ok']), [true, false, false, false], reason: 'a locked try is not a check');
+      expect(checks.first['home_id'], 'h1');
+      expect(checks.first['context'], 'shuttle');
+      expect(checks.first['guard_id'], 'ri1');
+      expect(checks.first['shift_id'], c.shift!.id);
+      expect(checks.toString(), isNot(contains('4821')), reason: 'the PIN never leaves the phone');
+
       now = now.add(const Duration(minutes: 5, seconds: 1));
       expect(await c.checkHouseCode('h1', '4821'), isA<HouseCodeOk>());
+      api.syncError = null;
+      api.stateError = null;
+      await c.syncNow();
+      expect(api.syncBodies.last['pin_checks'], hasLength(5));
     });
 
     test('the lockout survives a restart', () async {
-      for (var i = 0; i < 5; i++) {
+      for (var i = 0; i < 3; i++) {
         await c.checkHouseCode('h1', '9999');
       }
       final again = GateController(store: store, secrets: c.secrets, api: api, clock: () => now, pins: fastPins);
@@ -165,7 +193,7 @@ void main() {
       again.dispose();
     });
 
-    test('a home with no code says so, and malformed input never matches', () async {
+    test('a home with no PIN says so, and malformed input never matches', () async {
       expect(await c.checkHouseCode('h1', '48211'), isA<HouseCodeWrong>());
       expect(await c.checkHouseCode('h1', '482'), isA<HouseCodeWrong>());
       api.state = sampleState(shuttle: sampleShuttle()); // no house_code_hash
@@ -200,15 +228,30 @@ void main() {
     test('taken by another rider: the sync rejects it, the rider is told, the ride goes', () async {
       api.onSync = (body) {
         final ev = (body['ride_events'] as List).cast<Map>();
-        final lost = {for (final e in ev) if (e['event'] == 'accept') e['id'] as String: 'taken by Ade Rider'};
-        return SyncResult(accepted: [for (final id in FakeApi.idsIn(body)) if (!lost.containsKey(id)) id], duplicates: const [], rejected: lost);
+        final lost = {
+          for (final e in ev)
+            if (e['event'] == 'accept') e['id'] as String: 'taken by Ade Rider',
+        };
+        return SyncResult(
+          accepted: [
+            for (final id in FakeApi.idsIn(body))
+              if (!lost.containsKey(id)) id,
+          ],
+          duplicates: const [],
+          rejected: lost,
+        );
       };
       // On the server Ade already has it; this phone has not pulled that yet.
       final requestedA = ride(rideA);
-      serve(sampleShuttle(cardHash: hash, rides: [
-        sampleRide(rideA, state: 'accepted', riderId: 'ri2', rider: 'Ade Rider'),
-        sampleRide(rideB, kind: 'delivery', source: 'gate', fromHome: false, passenger: 'Jumia parcel'),
-      ]));
+      serve(
+        sampleShuttle(
+          cardHash: hash,
+          rides: [
+            sampleRide(rideA, state: 'accepted', riderId: 'ri2', rider: 'Ade Rider'),
+            sampleRide(rideB, kind: 'delivery', source: 'gate', fromHome: false, passenger: 'Jumia parcel'),
+          ],
+        ),
+      );
       await c.acceptRide(requestedA);
       await c.idle();
       expect(c.rideNotice, 'Taken by Ade Rider');
@@ -235,7 +278,10 @@ void main() {
       final card = c.cardFor('04a21b7c5580')!;
       expect(card.residentId, 'r1');
       expect(c.cardFor('04:A2:1B:7C:55:81'), isNull, reason: 'an unknown card says so');
-      await c.pickUp(ride(rideA), who: RideConfirm.card(cardId: card.id, residentId: card.residentId));
+      await c.pickUp(
+        ride(rideA),
+        who: RideConfirm.card(cardId: card.id, residentId: card.residentId),
+      );
       expect(c.myRides.single.state, RideState.pickedUp);
       await c.dropOff(ride(rideA));
       expect(c.myRides, isEmpty);
@@ -351,7 +397,10 @@ void main() {
       api.onSync = (body) {
         final cards = (body['cards'] as List).cast<Map>();
         return SyncResult(
-          accepted: [for (final id in FakeApi.idsIn(body)) if (!cards.any((x) => x['id'] == id)) id],
+          accepted: [
+            for (final id in FakeApi.idsIn(body))
+              if (!cards.any((x) => x['id'] == id)) id,
+          ],
           duplicates: const [],
           rejected: {for (final x in cards) x['id'] as String: "this card is already Mrs Adeyemi's; revoke it in the dashboard first"},
         );

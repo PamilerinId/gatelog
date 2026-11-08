@@ -62,9 +62,9 @@ class GateController extends ChangeNotifier {
     DateTime Function()? clock,
     LocationSource? location,
     this.cardReader = const NoCardReader(),
-  })  : push = push ?? NoPushService(),
-        _connectivity = connectivity,
-        _clock = clock ?? DateTime.now {
+  }) : push = push ?? NoPushService(),
+       _connectivity = connectivity,
+       _clock = clock ?? DateTime.now {
     _pusher = OutboxPusher(store, api, clock: _clock);
     _selfies = SelfieUploader(store, api, clock: _clock);
     positions = location == null ? null : PositionReporter(store, location, clock: _clock);
@@ -98,7 +98,7 @@ class GateController extends ChangeNotifier {
   GateView view = GateView.empty;
   OpenShift? shift;
   PinTries _tries = PinTries();
-  PinTries _houseTries = PinTries();
+  PinTries _houseTries = PinTries(null, homePinMaxTries);
 
   /// The shuttle's rides with this phone's records laid over them.
   RideView rides = RideView.empty;
@@ -169,7 +169,10 @@ class GateController extends ChangeNotifier {
   }
 
   /// People who can decide on a walk-in: everyone with role `cso`.
-  List<Guard> get csos => [for (final g in snapshot?.guards ?? const <Guard>[]) if (g.isCso) g];
+  List<Guard> get csos => [
+    for (final g in snapshot?.guards ?? const <Guard>[])
+      if (g.isCso) g,
+  ];
 
   // --- lifecycle --------------------------------------------------------------------------
 
@@ -191,7 +194,7 @@ class GateController extends ChangeNotifier {
     final triesRaw = await store.meta('pin_tries');
     _tries = PinTries(triesRaw == null ? null : jsonDecode(triesRaw) as Map<String, dynamic>);
     final houseRaw = await store.meta('house_code_tries');
-    _houseTries = PinTries(houseRaw == null ? null : jsonDecode(houseRaw) as Map<String, dynamic>);
+    _houseTries = PinTries(houseRaw == null ? null : jsonDecode(houseRaw) as Map<String, dynamic>, homePinMaxTries);
     await _loadCso();
     await _reloadOutbox();
     await _autoEndIfDue();
@@ -204,21 +207,25 @@ class GateController extends ChangeNotifier {
   /// and when a push says so.
   void start() {
     _subs.add(push.syncRequests.listen((_) => syncNow()));
-    _subs.add(push.tokenRefresh.listen((t) async {
-      final token = _token;
-      if (token == null) return;
-      try {
-        await api.putFcmToken(token, t);
-      } catch (_) {}
-    }));
+    _subs.add(
+      push.tokenRefresh.listen((t) async {
+        final token = _token;
+        if (token == null) return;
+        try {
+          await api.putFcmToken(token, t);
+        } catch (_) {}
+      }),
+    );
     final c = _connectivity;
     if (c != null) {
-      _subs.add(c.listen((isOnline) {
-        final cameBack = isOnline && !online;
-        online = isOnline;
-        notifyListeners();
-        if (cameBack) syncNow();
-      }));
+      _subs.add(
+        c.listen((isOnline) {
+          final cameBack = isOnline && !online;
+          online = isOnline;
+          notifyListeners();
+          if (cameBack) syncNow();
+        }),
+      );
     }
     setForeground(true);
   }
@@ -297,7 +304,7 @@ class GateController extends ChangeNotifier {
     keys = {};
     shift = null;
     _tries = PinTries();
-    _houseTries = PinTries();
+    _houseTries = PinTries(null, homePinMaxTries);
     rideNotice = null;
     _lostRides.clear();
     lastSyncAt = null;
@@ -422,18 +429,14 @@ class GateController extends ChangeNotifier {
   }
 
   /// What the end-of-shift record reports: still inside, not yet sent, night list unchecked.
-  Handover handoverNow() => Handover(
-        inside: view.inside.length,
-        unsynced: view.queued,
-        nightListOpen: view.nightListOpen(snapshot?.rollup),
-      );
+  Handover handoverNow() => Handover(inside: view.inside.length, unsynced: view.queued, nightListOpen: view.nightListOpen(snapshot?.rollup));
 
   /// People who can take over: everyone with consent, other than the person ending. A rider
   /// hands over to another rider; a guard or the CSO to a guard or the CSO.
   List<Guard> get takeoverCandidates => [
-        for (final g in snapshot?.guards ?? const <Guard>[])
-          if (g.consent && g.id != guardId && g.isRider == isRider) g,
-      ];
+    for (final g in snapshot?.guards ?? const <Guard>[])
+      if (g.consent && g.id != guardId && g.isRider == isRider) g,
+  ];
 
   /// Ends the open shift and goes back to the shift start screen. [handedTo] null = nobody.
   Future<void> endShift({String? handedTo, String? reason, DateTime? at}) async {
@@ -590,9 +593,7 @@ class GateController extends ChangeNotifier {
   /// A "take it" that lost to another rider is not something to fix later: say who has the
   /// ride, drop it from this rider's list, and take the record off the queue.
   Future<void> _settleLostRides() async {
-    final lost = (await store.outbox(status: OutboxStatus.rejected))
-        .where((i) => i.kind == OutboxKind.rideEvent && i.payload['event'] == 'accept')
-        .toList();
+    final lost = (await store.outbox(status: OutboxStatus.rejected)).where((i) => i.kind == OutboxKind.rideEvent && i.payload['event'] == 'accept').toList();
     if (lost.isEmpty) return;
     for (final i in lost) {
       _lostRides.add((i.payload['ride_id'] as String).toLowerCase());
@@ -675,8 +676,7 @@ class GateController extends ChangeNotifier {
   /// Offline code check against the cached visits, with this phone's records laid over them.
   CodeCheck verifyCode(String code) => checkCode(code, view.visits.values, keys, _clock().millisecondsSinceEpoch ~/ 1000);
 
-  Future<String> admitWithCode(Visit v, {String? plate}) =>
-      _entry(homeId: v.homeId, guestName: v.guestName, method: 'code', visitId: v.id, plate: plate);
+  Future<String> admitWithCode(Visit v, {String? plate}) => _entry(homeId: v.homeId, guestName: v.guestName, method: 'code', visitId: v.id, plate: plate);
 
   /// A guest already confirmed by phone ("Coming later") has arrived.
   Future<String> admitExpected(Visit v, {String? plate}) =>
@@ -706,36 +706,38 @@ class GateController extends ChangeNotifier {
     String? reason,
     String? decidedBy,
     String? plate,
-  }) =>
-      _record(OutboxKind.entry, {
-        'id': _uuid.v4(),
-        'home_id': homeId,
-        'guest_name': guestName.trim(),
-        'method': method,
-        'visit_id': visitId,
-        ..._who,
-        'gate_id': _gateId,
-        'plate': _plate(plate),
-        'decided_by': decidedBy,
-        'reason': (reason?.trim().isEmpty ?? true) ? null : reason!.trim(),
-        'at': _now,
-      });
+  }) => _record(OutboxKind.entry, {
+    'id': _uuid.v4(),
+    'home_id': homeId,
+    'guest_name': guestName.trim(),
+    'method': method,
+    'visit_id': visitId,
+    ..._who,
+    'gate_id': _gateId,
+    'plate': _plate(plate),
+    'decided_by': decidedBy,
+    'reason': (reason?.trim().isEmpty ?? true) ? null : reason!.trim(),
+    'at': _now,
+  });
 
   /// Exit by code or by tapping the name in the Leaving list.
   Future<String> recordExit(InsideGuest g, {required String method, String? plate}) => _record(OutboxKind.exit, {
-        'id': _uuid.v4(),
-        'method': method,
-        'entry_id': g.entryId,
-        'visit_id': g.visitId,
-        'guest_name': g.guestName,
-        ..._who,
-        'gate_id': _gateId,
-        'plate': _plate(plate),
-        'at': _now,
-      });
+    'id': _uuid.v4(),
+    'method': method,
+    'entry_id': g.entryId,
+    'visit_id': g.visitId,
+    'guest_name': g.guestName,
+    ..._who,
+    'gate_id': _gateId,
+    'plate': _plate(plate),
+    'at': _now,
+  });
 
-  Future<String> exitByCode(Visit v, {String? plate}) =>
-      recordExit(InsideGuest(homeId: v.homeId, guestName: v.guestName, visitId: v.id, entryId: v.entryId), method: 'code', plate: plate);
+  Future<String> exitByCode(Visit v, {String? plate}) => recordExit(
+    InsideGuest(homeId: v.homeId, guestName: v.guestName, visitId: v.id, entryId: v.entryId),
+    method: 'code',
+    plate: plate,
+  );
 
   /// The CSO marks an overdue guest as gone (`list_tap`, as from the Leaving list).
   Future<String> markLeft(String visitId, String guestName) {
@@ -748,29 +750,29 @@ class GateController extends ChangeNotifier {
 
   /// Someone leaving who is not on the list: name only.
   Future<String> exitUnlisted(String guestName, {String? plate}) => _record(OutboxKind.exit, {
-        'id': _uuid.v4(),
-        'method': 'list_tap',
-        'entry_id': null,
-        'visit_id': null,
-        'guest_name': guestName.trim(),
-        ..._who,
-        'gate_id': _gateId,
-        'plate': _plate(plate),
-        'at': _now,
-      });
+    'id': _uuid.v4(),
+    'method': 'list_tap',
+    'entry_id': null,
+    'visit_id': null,
+    'guest_name': guestName.trim(),
+    ..._who,
+    'gate_id': _gateId,
+    'plate': _plate(plate),
+    'at': _now,
+  });
 
   Future<String> recordCallback({required String homeId, required String numberId, required String outcome, String? visitId}) =>
       _record(OutboxKind.callback, _callback(homeId: homeId, numberId: numberId, outcome: outcome, visitId: visitId));
 
   Map<String, dynamic> _callback({required String homeId, required String numberId, required String outcome, String? visitId, String? id, String? at}) => {
-        'id': id ?? _uuid.v4(),
-        'home_id': homeId,
-        'number_id': numberId,
-        'outcome': outcome,
-        'visit_id': visitId,
-        ..._who,
-        'at': at ?? _now,
-      };
+    'id': id ?? _uuid.v4(),
+    'home_id': homeId,
+    'number_id': numberId,
+    'outcome': outcome,
+    'visit_id': visitId,
+    ..._who,
+    'at': at ?? _now,
+  };
 
   /// The resident confirmed on the callback. Recorded at once, so the call is on file even if
   /// the guard never gets to choose in now or later.
@@ -878,7 +880,7 @@ class GateController extends ChangeNotifier {
 
   /// "Shuttle to the home" from the gate: a parcel (what it is) or a guest (their name), from
   /// this phone's gate to the home.
-  Future<String> bookAtGate({required Home home, required String kind, required String passenger, String? note}) {
+  Future<String> bookAtGate({required Home home, required String kind, String? passenger, String? note}) {
     if (kind != RideKind.delivery && kind != RideKind.guest) throw ArgumentError('A gate booking is a parcel or a guest.');
     final gate = _gateId;
     return _record(
@@ -903,20 +905,19 @@ class GateController extends ChangeNotifier {
     required RideStop dropoff,
     DateTime? wantedAt,
     String? note,
-  }) =>
-      _record(
-        OutboxKind.ride,
-        _rideRecord(
-          kind: RideKind.resident,
-          source: 'dispatch',
-          home: home,
-          residentId: residentId,
-          pickup: pickup,
-          dropoff: dropoff,
-          wantedAt: wantedAt,
-          note: note,
-        ),
-      );
+  }) => _record(
+    OutboxKind.ride,
+    _rideRecord(
+      kind: RideKind.resident,
+      source: 'dispatch',
+      home: home,
+      residentId: residentId,
+      pickup: pickup,
+      dropoff: dropoff,
+      wantedAt: wantedAt,
+      note: note,
+    ),
+  );
 
   /// Flagged down: the ride and its pickup, in the same batch. Returns the ride id.
   Future<String> newFlagRide({required Home home, required RideStop pickup, required RideStop dropoff, required RideConfirm who}) async {
@@ -979,14 +980,19 @@ class GateController extends ChangeNotifier {
 
   DateTime? houseCodeLockedUntil(String homeId) => _houseTries.lockedUntil(homeId, _clock());
 
-  /// The resident says their home's 4 digits; checked offline against the home's hash, like a
-  /// PIN. Five wrong tries on one home: wait 5 minutes. The code is never stored or logged.
+  /// The rider asks for the home PIN (`homes[].house_code_hash`, one 4-digit PIN per home for
+  /// the gate and the shuttle); checked offline like a guard PIN. Three wrong tries on one home:
+  /// ask them to call the gate (and wait 5 minutes before another try here). Every check, right
+  /// or wrong, is a `pin_checks` record (`context: shuttle`); a wrong one texts the home. The PIN
+  /// is never stored, sent or logged.
   Future<HouseCodeCheck> checkHouseCode(String homeId, String code) async {
     final hash = snapshot?.home(homeId)?.houseCodeHash;
     if (hash == null) return const HouseCodeNone();
     final locked = _houseTries.lockedUntil(homeId, _clock());
     if (locked != null) return HouseCodeLocked(locked);
-    if (RegExp(r'^\d{4}$').hasMatch(code) && await pins.check(code, hash)) {
+    final ok = RegExp(r'^\d{4}$').hasMatch(code) && await pins.check(code, hash);
+    await _record(OutboxKind.pinCheck, {'id': _uuid.v4(), 'home_id': homeId, 'ok': ok, 'context': 'shuttle', ..._who, 'at': _now});
+    if (ok) {
       _houseTries.clear(homeId);
       await store.setMeta('house_code_tries', jsonEncode(_houseTries.toJson()));
       return const HouseCodeOk();
@@ -1017,7 +1023,8 @@ class GateController extends ChangeNotifier {
     String home(Object? id) => id == null ? '' : (snapshot?.home(id as String)?.displayAddress ?? 'unknown home');
     String person(Object? id) => snapshot?.guard(id as String?)?.name ?? 'someone';
     return switch (i.kind) {
-      OutboxKind.entry => '${switch (p['method']) {
+      OutboxKind.entry =>
+        '${switch (p['method']) {
           'refused' => 'Turned away',
           'walk_in_admitted' => 'Walk-in',
           _ => 'Entry',
@@ -1029,9 +1036,11 @@ class GateController extends ChangeNotifier {
       OutboxKind.directoryReport => 'Number reported not working',
       OutboxKind.pin => 'New PIN for ${person(p['guard_id'])}. Set it again at the next shift.',
       OutboxKind.shift => '${p['ended_at'] == null ? 'Shift start' : 'Shift end'}: ${person(p['guard_id'])}',
+      OutboxKind.pinCheck => 'Home PIN check (${p['ok'] == true ? 'right' : 'wrong'}), ${home(p['home_id'])}',
       OutboxKind.card => 'Estate card for ${snapshot?.resident(p['resident_id'] as String?)?.name ?? 'a resident'}',
       OutboxKind.ride => 'Shuttle booking: ${rideKindLabel(p['kind'] as String? ?? '')}, ${home(p['home_id'])}',
-      OutboxKind.rideEvent => 'Shuttle ride: ${switch (p['event']) {
+      OutboxKind.rideEvent =>
+        'Shuttle ride: ${switch (p['event']) {
           'accept' => 'take it',
           'release' => 'hand back',
           'pick_up' => 'picked up',

@@ -44,7 +44,7 @@ class FakeApi implements GateApi {
   /// The server ids in a sync body, the way the server answers them.
   static List<String> idsIn(Map<String, dynamic> body) => [
         for (final i in (body['pins'] as List? ?? const [])) (i as Map)['guard_id'] as String,
-        for (final k in ['shifts', 'cards', 'rides', 'ride_events', 'visits', 'callbacks', 'entries', 'exits'])
+        for (final k in ['shifts', 'cards', 'rides', 'ride_events', 'pin_checks', 'visits', 'callbacks', 'entries', 'exits'])
           ...[for (final i in (body[k] as List? ?? const [])) (i as Map)['id'] as String],
         for (final i in body['rollup_checks'] as List) (i as Map)['item_id'] as String,
       ];
