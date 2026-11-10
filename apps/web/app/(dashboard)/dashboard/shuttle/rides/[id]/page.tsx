@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { load } from "@/app/(dashboard)/_lib/api";
+import { getMe, load } from "@/app/(dashboard)/_lib/api";
 import { RIDE_CONFIRM, RIDE_EVENT, RIDE_KIND, RIDE_SOURCE, RIDE_STATE, fmtDateTime } from "@/app/(dashboard)/_lib/format";
+import { canOpen } from "@/app/(dashboard)/_lib/roles";
 import type { RideDetail } from "@/app/(dashboard)/_lib/types";
-import { ApiError, Badge, PageHead, Section } from "@/app/(dashboard)/_components/ui";
+import { ApiError, Badge, NotForRole, PageHead, Section } from "@/app/(dashboard)/_components/ui";
 
 export const metadata: Metadata = { title: "Ride" };
 
 export default async function RidePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  const me = await getMe();
+  if (!canOpen(me.role, "shuttle")) return <NotForRole title="Ride" />;
   const r = await load<RideDetail>(`/v1/admin/rides/${id}`);
   if (!r.ok && r.status === 404) notFound();
 

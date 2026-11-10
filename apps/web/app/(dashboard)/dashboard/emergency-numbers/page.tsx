@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { getMe, load } from "@/app/(dashboard)/_lib/api";
+import { canOpen, persona } from "@/app/(dashboard)/_lib/roles";
 import { CATEGORY, fmtDate } from "@/app/(dashboard)/_lib/format";
 import type { DirectoryCategory, DirectoryEntry } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
 import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
-import { ApiError, Badge, Empty, PageHead } from "@/app/(dashboard)/_components/ui";
+import { ApiError, Badge, Empty, More, NotForRole, PageHead } from "@/app/(dashboard)/_components/ui";
 import { createDirectoryEntry, deleteDirectoryEntry, reportDirectoryEntry, updateDirectoryEntry, verifyDirectoryEntry } from "../actions";
 
 export const metadata: Metadata = { title: "Emergency numbers" };
@@ -13,8 +14,12 @@ const ORDER: DirectoryCategory[] = ["estate", "crime", "fire", "medical", "utili
 const SCOPE = { estate: "Estate", state: "State", lga: "Local government" } as const;
 
 export default async function EmergencyNumbersPage() {
-  const [me, r] = await Promise.all([getMe(), load<DirectoryEntry[]>("/v1/admin/directory")]);
+  const me = await getMe();
+  if (!canOpen(me.role, "emergency-numbers")) return <NotForRole title="Emergency numbers" />;
+  const r = await load<DirectoryEntry[]>("/v1/admin/directory");
   const admin = me.role === "admin";
+  // The Exco reads; the office and the security head can say a number did not work.
+  const canReport = persona(me.role) !== "exco";
 
   return (
     <>
@@ -38,7 +43,7 @@ export default async function EmergencyNumbersPage() {
                 </h2>
                 <div className="dash-cards">
                   {rows.map((e) => (
-                    <NumberCard key={e.id} e={e} admin={admin} />
+                    <NumberCard key={e.id} e={e} admin={admin} canReport={canReport} />
                   ))}
                 </div>
               </section>
@@ -90,7 +95,7 @@ function DirectoryFields({ e }: { e?: DirectoryEntry }) {
   );
 }
 
-function NumberCard({ e, admin }: { e: DirectoryEntry; admin: boolean }) {
+function NumberCard({ e, admin, canReport }: { e: DirectoryEntry; admin: boolean; canReport: boolean }) {
   return (
     <article className="dash-card dash-dir">
       <div className="dash-dir__head">
@@ -116,9 +121,8 @@ function NumberCard({ e, admin }: { e: DirectoryEntry; admin: boolean }) {
       </p>
       {!e.editable && <p className="dash-hint">Gatelog maintains this number. If it did not work, report it so Gatelog can test it again.</p>}
 
-      <div className="dash-resident__tools">
-        {admin && e.editable && (
-          <>
+      {admin && e.editable ? (
+        <More label="Change">
             <details className="dash-details dash-details--inline">
               <summary>Mark verified</summary>
               <ActionForm action={verifyDirectoryEntry} hidden={{ id: e.id }} submit="Mark verified today" submitClass="dash-btn dash-btn--primary dash-btn--sm">
@@ -135,15 +139,13 @@ function NumberCard({ e, admin }: { e: DirectoryEntry; admin: boolean }) {
                 <DirectoryFields e={e} />
               </ActionForm>
             </details>
-          </>
-        )}
+            <ConfirmButton action={deleteDirectoryEntry} hidden={{ id: e.id }} label="Delete" title={`Delete ${e.name}?`} confirmLabel="Delete number">
+              <p>It will no longer be sent to residents and guards who ask for help.</p>
+            </ConfirmButton>
+        </More>
+      ) : canReport ? (
         <ActionForm action={reportDirectoryEntry} hidden={{ id: e.id }} className="dash-inline-form" submit="This number didn't work" submitClass="dash-btn dash-btn--quiet dash-btn--sm" />
-        {admin && e.editable && (
-          <ConfirmButton action={deleteDirectoryEntry} hidden={{ id: e.id }} label="Delete" title={`Delete ${e.name}?`} confirmLabel="Delete number">
-            <p>It will no longer be sent to residents and guards who ask for help.</p>
-          </ConfirmButton>
-        )}
-      </div>
+      ) : null}
     </article>
   );
 }

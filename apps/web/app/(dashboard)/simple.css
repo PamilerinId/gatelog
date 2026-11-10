@@ -1,0 +1,816 @@
+/* ------------------------------------------------------------------
+   The simplified dashboard: cards, plain lists, one primary button per
+   screen, secondary actions behind "More", sections folded until
+   opened. Big type and plain words; phone first.
+------------------------------------------------------------------- */
+
+.dash {
+  font-size: 16px;
+}
+.dash-h1 {
+  font-size: clamp(26px, 3vw, 32px);
+}
+.dash-lede {
+  font-size: 16px;
+}
+
+/* ---------------- big numbers ---------------- */
+
+.dash-bigs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+}
+.dash-big {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: var(--radius-card);
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--ink);
+}
+.dash a.dash-big {
+  color: var(--ink);
+}
+a.dash-big:hover {
+  border-color: var(--line-strong);
+}
+.dash-big__value {
+  font-size: clamp(36px, 6vw, 48px);
+  font-weight: 500;
+  line-height: 1.05;
+}
+.dash-big__value.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-big__label {
+  font-size: 15px;
+  color: var(--slate);
+}
+
+/* ---------------- to do ---------------- */
+
+.dash-todo {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash .dash-todo__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 17px;
+}
+.dash .dash-todo__item:hover {
+  border-color: var(--line-strong);
+}
+.dash .dash-todo__item.is-warn {
+  border-left-color: var(--lamp);
+}
+.dash .dash-todo__item.is-bad {
+  border-left-color: var(--stop);
+}
+.dash-todo__go {
+  font-family: var(--mono);
+  color: var(--slate);
+}
+.dash-done {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--pass-soft);
+  font-size: 16px;
+}
+.dash-alsolinks {
+  margin-top: 28px;
+  font-size: 15px;
+  color: var(--slate);
+}
+.dash .dash-quiet-link,
+.dash-alsolinks a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+/* ---------------- More menus ---------------- */
+
+.dash-more {
+  position: relative;
+  display: inline-block;
+}
+.dash-more__btn {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-more__btn::-webkit-details-marker {
+  display: none;
+}
+.dash-more__btn::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+}
+.dash-more[open] > .dash-more__btn {
+  background: var(--navy-soft);
+}
+.dash-more__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  min-width: 240px;
+  max-width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+}
+.dash-more--end .dash-more__menu {
+  right: 0;
+}
+.dash-more--start .dash-more__menu {
+  left: 0;
+}
+.dash-more__menu > a,
+.dash-more__menu > button,
+.dash-more__menu > .dash-btn,
+.dash-more__menu > details > summary,
+.dash-more__menu > form > button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dash .dash-more__menu > a {
+  color: var(--ink);
+}
+.dash-more__menu > a:hover,
+.dash-more__menu > button:hover,
+.dash-more__menu > details > summary:hover {
+  background: var(--navy-soft);
+}
+.dash-more__menu > details {
+  border: 0;
+  margin: 0;
+  background: none;
+}
+.dash-more__menu > details[open] {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding-bottom: 8px;
+}
+.dash-more__menu > details > form,
+.dash-more__menu > details > div {
+  padding: 4px 10px;
+}
+.dash-more__menu .dash-hint {
+  padding: 4px 12px;
+}
+.dash-more__menu .dash-inline-form {
+  padding: 4px 8px;
+}
+@media (max-width: 640px) {
+  .dash-more__menu {
+    position: fixed;
+    left: 16px !important;
+    right: 16px !important;
+    top: auto;
+    bottom: 16px;
+    max-width: none;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+/* The page's one primary action, opening its form in place. */
+.dash-primary-fold {
+  position: relative;
+}
+.dash-primary-fold > summary {
+  list-style: none;
+}
+.dash-primary-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.dash-primary-fold__panel {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  background: var(--dash-surface);
+}
+@media (max-width: 640px) {
+  .dash-primary-fold__panel {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    width: auto;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+}
+
+/* ---------------- folds ---------------- */
+
+.dash-folds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-fold {
+  display: block;
+  border-radius: 18px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+  text-decoration: none;
+}
+.dash-fold__head {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  min-height: 60px;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+.dash-fold__head::-webkit-details-marker {
+  display: none;
+}
+.dash-fold__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dash-fold__title::before {
+  content: "+";
+  display: inline-block;
+  width: 22px;
+  font-family: var(--mono);
+  color: var(--slate);
+}
+.dash-fold[open] > .dash-fold__head .dash-fold__title::before {
+  content: "-";
+}
+.dash-fold--link .dash-fold__title::before {
+  content: "→";
+}
+.dash-fold__status {
+  font-size: 15px;
+  color: var(--slate);
+}
+.dash-fold__status.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-fold__status.is-bad {
+  color: var(--stop-text);
+}
+.dash-fold[open] > .dash-fold__head {
+  border-bottom: 1px solid var(--line);
+}
+.dash-fold__body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+.dash-fold__body > * {
+  max-width: 100%;
+}
+.dash-fold__body > .dash-cards,
+.dash-fold__body > .dash-plainlist,
+.dash-fold__body > .dash-details,
+.dash-fold__body > form {
+  align-self: stretch;
+}
+.dash .dash-fold--link {
+  color: var(--ink);
+}
+
+/* ---------------- plain lists ---------------- */
+
+.dash-plainlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dash-plainlist__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.dash-plainlist__item:first-child {
+  border-top: 0;
+}
+.dash-plainlist__item.is-off {
+  opacity: 0.6;
+}
+.dash-plainlist__item--block {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dash-plainlist__item--total {
+  font-weight: 650;
+  border-top: 2px solid var(--line-strong);
+}
+.dash-plainlist__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.dash-plainlist__item--block > .dash-plainlist__main {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.dash-plainlist--inner {
+  margin: 4px 0 8px 14px;
+}
+.dash-plainlist__side {
+  color: var(--slate);
+}
+
+/* ---------------- homes ---------------- */
+
+.dash-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dash-search__input {
+  flex: 1 1 280px;
+  max-width: 520px;
+  min-height: 52px;
+  font-size: 18px;
+  border-radius: 999px;
+  padding: 8px 20px;
+}
+.dash-street-group {
+  margin-top: 22px;
+}
+.dash-street-group__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--slate);
+  margin-bottom: 10px;
+}
+.dash-homecards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+}
+.dash .dash-homecard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+.dash .dash-homecard:hover {
+  border-color: var(--line-strong);
+}
+.dash-homecard__no {
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+.dash-homecard__street {
+  font-size: 14px;
+  color: var(--slate);
+}
+.dash-homecard__who {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.dash-homecard__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--slate);
+}
+.dash-homehead__no {
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+/* ---------------- gate, rider and person cards ---------------- */
+
+.dash-gatecards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0 1 340px;
+  min-width: 0;
+}
+.dash-gatecards--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+.dash-gatecard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+button.dash-gatecard {
+  cursor: pointer;
+}
+button.dash-gatecard:hover {
+  border-color: var(--line-strong);
+}
+.dash-gatecard.is-stale {
+  opacity: 0.65;
+}
+.dash-gatecard--office {
+  background: var(--dash-surface);
+  box-shadow: none;
+}
+.dash-gatecard__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.dash-gatecard__name {
+  font-size: 20px;
+  font-weight: 600;
+}
+.dash-gatecard__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.dash-gatecard__state.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-gatecard__line {
+  font-size: 15px;
+}
+.dash-gatecard__line.dash-mono {
+  font-size: 13px;
+  color: var(--slate);
+}
+.dash-gatecard__phones {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.dash-gatecard__phones > .dash-plainlist {
+  align-self: stretch;
+}
+
+.dash-personcards {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: 12px;
+}
+.dash-personcard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+}
+.dash-personcard.is-off {
+  opacity: 0.6;
+}
+.dash-personcard__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.dash-personcard__name {
+  font-size: 18px;
+  font-weight: 600;
+}
+.dash-personcard__role {
+  font-size: 14px;
+  color: var(--slate);
+}
+.dash-personcard__fact {
+  font-size: 14px;
+}
+.dash-personcard--add {
+  justify-content: center;
+  border-style: dashed;
+}
+.dash-personcard--add summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.dash-personcard--add form {
+  margin-top: 10px;
+}
+
+/* ---------------- shifts ---------------- */
+
+.dash-shiftlist {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-shift {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+}
+.dash-shift__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.dash-shift__who {
+  font-size: 17px;
+  font-weight: 600;
+}
+.dash-shift__when {
+  font-size: 14px;
+}
+
+/* ---------------- needs you ---------------- */
+
+.dash-needs {
+  flex: 0 1 400px;
+  min-width: 0;
+  padding: 16px;
+}
+.dash-needs__title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.dash-needs__none {
+  font-size: 16px;
+  color: var(--slate);
+}
+.dash-needs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-need {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  background: var(--dash-surface);
+}
+.dash-need.is-warn {
+  border-left-color: var(--lamp);
+}
+.dash-need.is-bad {
+  border-left-color: var(--stop);
+}
+.dash-need.is-bad strong {
+  color: var(--stop-text);
+}
+.dash .dash-need__link {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dash-livestate {
+  font-size: 13px;
+  color: var(--slate);
+  margin: -6px 0 10px;
+}
+.dash-status .dash-quiet-link {
+  font-size: 14px;
+}
+
+/* ---------------- messages ---------------- */
+
+.dash-monthnav {
+  display: flex;
+  gap: 16px;
+  margin: -8px 0 16px;
+  font-size: 15px;
+}
+.dash-hero {
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--dash-surface);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-hero__value {
+  font-size: clamp(48px, 10vw, 72px);
+  font-weight: 500;
+  line-height: 1;
+}
+.dash-hero__value.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-hero__of {
+  font-size: 0.4em;
+  color: var(--slate);
+}
+.dash-hero__label {
+  font-size: 18px;
+}
+.dash-hero__note {
+  font-size: 15px;
+  color: var(--slate);
+  max-width: 70ch;
+}
+.dash-meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.dash-meter__fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.dash-meter__fill.is-warn {
+  background: var(--lamp);
+}
+
+/* ---------------- gate log filter ---------------- */
+
+.dash-filterfold {
+  margin-bottom: 14px;
+}
+.dash-filterfold__btn {
+  list-style: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+.dash-filterfold__btn::-webkit-details-marker {
+  display: none;
+}
+.dash-filterfold__now {
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--slate);
+}
+.dash-filterfold[open] > .dash-filters {
+  margin-top: 10px;
+}
+.dash-radios {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------------- first screens on the map ---------------- */
+
+@media (max-width: 899px) {
+  .dash-needs,
+  .dash-gatecards {
+    flex: 1 1 auto;
+  }
+  .dash-live__row > .dash-needs {
+    order: 1;
+  }
+  .dash-live__row > .dash-gatecards {
+    order: 2;
+  }
+}
+@media (min-width: 900px) {
+  .dash-live__row > .dash-gatecards,
+  .dash-live__row > .dash-needs {
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    align-self: flex-start;
+    scrollbar-width: thin;
+  }
+}

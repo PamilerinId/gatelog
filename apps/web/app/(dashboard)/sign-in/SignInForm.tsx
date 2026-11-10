@@ -9,7 +9,8 @@ export function SignInForm() {
 
   if (!email)
     return (
-      <ActionForm action={requestCode} reset={false} showMessage={false} submit="Email me a code" submitClass="dash-btn dash-btn--primary dash-btn--block" onDone={(s) => setEmail((s?.data as { email: string }).email)}>
+      // Keyed per step: without it React reuses the same <input> for the code and the email stays in it.
+      <ActionForm key="email-step" action={requestCode} reset={false} showMessage={false} submit="Email me a code" submitClass="dash-btn dash-btn--primary dash-btn--block" onDone={(s) => setEmail((s?.data as { email: string }).email)}>
         <p className="dash-muted">We will email you a six-digit code. No password needed.</p>
         <div className="dash-field">
           <label htmlFor="email">Work email</label>
@@ -20,7 +21,7 @@ export function SignInForm() {
 
   return (
     <>
-    <ActionForm action={verifyCode} reset={false} showMessage={false} submit="Sign in" submitClass="dash-btn dash-btn--primary dash-btn--block" hidden={{ email }}>
+    <ActionForm key="code-step" action={verifyCode} reset={false} showMessage={false} submit="Sign in" submitClass="dash-btn dash-btn--primary dash-btn--block" hidden={{ email }}>
       <p className="dash-muted">
         If <strong>{email}</strong> is registered with an estate, a code is on its way. It works for 10 minutes.
       </p>
@@ -34,6 +35,7 @@ export function SignInForm() {
           autoComplete="one-time-code"
           pattern="[0-9 ]{6,7}"
           maxLength={7}
+          defaultValue=""
           required
           autoFocus
         />

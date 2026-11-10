@@ -190,6 +190,9 @@ export async function setGuardActive(fd: FormData) {
 export async function createGate(fd: FormData) {
   return act("POST", "/v1/admin/gates", { name: str(fd, "name") }, "Gate added.");
 }
+export async function renameGate(fd: FormData) {
+  return act("PATCH", `/v1/admin/gates/${id(fd)}`, { name: str(fd, "name") }, "Gate renamed.");
+}
 export async function createDevice(fd: FormData) {
   return act("POST", "/v1/admin/devices", { gate_id: id(fd, "gate_id"), label: str(fd, "label") });
 }
@@ -381,4 +384,8 @@ export async function updateShuttleSettings(fd: FormData) {
 /** Types in the name the guard said into a voice clip (or corrects one). Audited by the API. */
 export async function nameEntry(fd: FormData) {
   return act("PATCH", `/v1/admin/entries/${id(fd)}`, { guest_name: str(fd, "guest_name") }, "Name saved.");
+}
+
+export async function updateVisitorPhotos(fd: FormData) {
+  return act("PATCH", "/v1/admin/estate/settings", { visitor_photos: oneOf(fd, "visitor_photos", ["all", "phone_entries", "off"] as const, "phone_entries") }, "Saved.");
 }

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { load } from "@/app/(dashboard)/_lib/api";
+import { getEstate, getMe, load } from "@/app/(dashboard)/_lib/api";
+import { canOpen, persona } from "@/app/(dashboard)/_lib/roles";
 import { ENTRY_METHOD, TRUST, fmtDate, fmtDateTime, fmtDay, pct } from "@/app/(dashboard)/_lib/format";
 import type { EntryMethod, EntryTrust, Summary, TrustSplit } from "@/app/(dashboard)/_lib/types";
-import { ApiError, Badge, Empty, PageHead, Section } from "@/app/(dashboard)/_components/ui";
+import { ApiError, Badge, Empty, More, NotForRole, PageHead, Section } from "@/app/(dashboard)/_components/ui";
 
-export const metadata: Metadata = { title: "Reports" };
+export const metadata: Metadata = { title: "Monthly report" };
 
 const PERIODS = [7, 30, 90] as const;
 // Same order as the API. Walk-ins count as admitted but are not part of the phone share.
@@ -13,6 +14,11 @@ const METHODS: EntryMethod[] = ["code", "phone_announced", "callback_confirmed",
 const LEVELS: EntryTrust[] = ["verified", "pin_verified", "unverified"];
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
+  const me = await getMe();
+  if (!canOpen(me.role, "reports")) return <NotForRole title="Monthly report" />;
+  const estate = await getEstate();
+  const shuttle = estate.ok && estate.data.settings.shuttle_enabled;
+  const who = persona(me.role);
   const { days: raw } = await searchParams;
   const days = PERIODS.find((p) => String(p) === raw) ?? 30;
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
@@ -21,15 +27,19 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHead
-        title="Reports"
+        title="Monthly report"
         actions={
           <>
-            <a className="dash-btn dash-btn--ghost dash-btn--sm" href={`/dashboard/reports/export?view=summary&days=${days}`} download>
-              Download summary (Excel)
+            <a className="dash-btn dash-btn--primary" href={`/dashboard/reports/export?view=summary&days=${days}`} download>
+              Download for Excel
             </a>
-            <a className="dash-btn dash-btn--ghost dash-btn--sm" href={`/dashboard/reports/export?view=entries&days=${days}`} download>
-              Download all entries (Excel)
-            </a>
+            <More>
+              <a href={`/dashboard/reports/export?view=entries&days=${days}`} download>
+                Every entry (Excel)
+              </a>
+              {who === "exco" && <Link href="/dashboard/messaging">Messages sent and the SMS allowance</Link>}
+              {shuttle && who !== "treasurer" && <Link href="/dashboard/shuttle?tab=report">Shuttle report</Link>}
+            </More>
           </>
         }
       >

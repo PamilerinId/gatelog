@@ -169,6 +169,8 @@ export type EstateSettings = {
   /** The estate shuttle. Off unless the estate runs one. */
   shuttle_enabled: boolean;
   max_rides_per_home_per_day: number;
+  /** When the gate phone takes a photo of the visitor. */
+  visitor_photos?: "all" | "phone_entries" | "off";
 };
 export type Estate = {
   id: string;
@@ -287,6 +289,19 @@ export type Live = {
    * log, and today's summary. Null when that part could not be loaded. */
   log?: GateEntry[] | null;
   today?: Summary | null;
+  inside?: Visit[] | null;
+};
+
+export type Visit = {
+  id: string;
+  guest_name: string;
+  address: string;
+  source: string;
+  state: string;
+  window_start: string | null;
+  window_end: string | null;
+  expected_until: string | null;
+  stay_type: string | null;
 };
 
 // --- shuttle (apps/api/app/routers/shuttle_admin.py) ------------------------------------

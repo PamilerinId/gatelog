@@ -24,12 +24,15 @@ export function MapShell({
   initialTheme,
   canSeePositions,
   admin,
+  liveHome,
   children,
 }: {
   data: EstateMapData | null;
   initialTheme: Theme;
   canSeePositions: boolean;
   admin: boolean;
+  /** The first screen is the live map (security head, Exco); otherwise the map is a still background. */
+  liveHome: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -39,7 +42,7 @@ export function MapShell({
       ? "edit"
       : !data.bbox
         ? "none"
-        : pathname === "/dashboard"
+        : pathname === "/dashboard" && liveHome
           ? "live"
           : "still";
 

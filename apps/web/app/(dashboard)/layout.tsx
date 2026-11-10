@@ -4,6 +4,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "./dashboard.css";
 import "./map.css";
+import "./simple.css";
 
 // The estate dashboard sits inside the root layout (fonts, base tokens) but carries its own
 // title and stylesheet, and is kept out of search engines.

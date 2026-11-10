@@ -807,7 +807,7 @@
     order: 1;
   }
   .dash-legend {
-    order: -1;
+    order: 3;
   }
   .dash-map .maplibregl-ctrl-bottom-right {
     bottom: 8px;

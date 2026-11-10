@@ -18,7 +18,8 @@ import {
 import type { Guard, Motorcycle, Ride, RideKind, RideState, ShuttleReport, ZoneNode } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
 import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
-import { ApiError, Badge, Empty, PageHead, Section } from "@/app/(dashboard)/_components/ui";
+import { ApiError, Badge, Empty, NotForRole, PageHead, Section } from "@/app/(dashboard)/_components/ui";
+import { canOpen } from "@/app/(dashboard)/_lib/roles";
 import { createMotorcycle, setMotorcycleActive, updateMotorcycle } from "../actions";
 
 export const metadata: Metadata = { title: "Shuttle" };
@@ -35,6 +36,7 @@ export default async function ShuttlePage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const tab: Tab = sp.tab === "bikes" ? "bikes" : sp.tab === "report" ? "report" : "rides";
   const [me, estate] = await Promise.all([getMe(), getEstate()]);
+  if (!canOpen(me.role, "shuttle")) return <NotForRole title="Shuttle" />;
   const admin = me.role === "admin";
 
   if (estate.ok && !estate.data.settings.shuttle_enabled) {

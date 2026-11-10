@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
 import { getMe, load } from "@/app/(dashboard)/_lib/api";
-import { ENTRY_METHOD, EXIT_METHOD, MEDIA_ROLES, TRUST, TZ_OFFSET, addDays, fmtDateTime, todayLagos } from "@/app/(dashboard)/_lib/format";
+import { ENTRY_METHOD, EXIT_METHOD, TRUST, TZ_OFFSET, addDays, fmtDate, fmtDateTime, todayLagos } from "@/app/(dashboard)/_lib/format";
+import { canOpen, seesMedia } from "@/app/(dashboard)/_lib/roles";
 import type { EntryMethod, Gate, GateEntry, UnmatchedExit } from "@/app/(dashboard)/_lib/types";
-import { ApiError, Badge, Empty, PageHead } from "@/app/(dashboard)/_components/ui";
+import { ApiError, Badge, Empty, NotForRole, PageHead } from "@/app/(dashboard)/_components/ui";
 import { ClipControls, PhotoButton } from "@/app/(dashboard)/_components/EntryMedia";
 
 export const metadata: Metadata = { title: "Gate log" };
@@ -48,8 +49,9 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
     return `/v1/admin/entries?${q}`;
   };
 
-  const [me, gates, entries, walkIns, unmatched] = await Promise.all([
-    getMe(),
+  const me = await getMe();
+  if (!canOpen(me.role, "gate-log")) return <NotForRole title="Gate log" />;
+  const [gates, entries, walkIns, unmatched] = await Promise.all([
     load<Gate[]>("/v1/admin/gates"),
     tab === "entries" ? load<GateEntry[]>(withMethod(method)) : Promise.resolve(null),
     // The API returns both kinds of decision, newest first, in one call.
@@ -58,7 +60,8 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
   ]);
 
   // Voice clips and gate photos are personal data: the estate admin and the security head only.
-  const media = MEDIA_ROLES.includes(me.role);
+  const media = seesMedia(me.role);
+  const filtered = !!(sp.from || sp.to || method || gate || plate);
 
   // Walk-in decisions: everyone let in or turned away by the guard or CSO on duty, newest first.
   const decisionsError = walkIns && !walkIns.ok ? walkIns.error : null;
@@ -66,14 +69,14 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHead title="Gate log">Every entry recorded by the gate phones, newest first. Times are Lagos time.</PageHead>
+      <PageHead title="Gate log">Everyone who came through the gates, newest first. Lagos time.</PageHead>
 
       <nav className="dash-tabs" aria-label="Gate log views">
         <Link href="/dashboard/gate-log" aria-current={tab === "entries" ? "page" : undefined} className="dash-tab">
           Entries
         </Link>
         <Link href="/dashboard/gate-log?tab=walkins" aria-current={tab === "walkins" ? "page" : undefined} className="dash-tab">
-          Walk-in decisions
+          Walk-ins
         </Link>
         <Link href="/dashboard/gate-log?tab=unmatched" aria-current={tab === "unmatched" ? "page" : undefined} className="dash-tab">
           Exits with no entry
@@ -81,6 +84,16 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
       </nav>
 
       {tab !== "unmatched" && (
+        <details className="dash-filterfold" open={filtered}>
+          <summary className="dash-filterfold__btn">
+            Filter
+            <span className="dash-filterfold__now">
+              {fmtDate(`${from}T12:00:00Z`)} to {fmtDate(`${to}T12:00:00Z`)}
+              {method ? ` · ${ENTRY_METHOD[method as EntryMethod]}` : ""}
+              {gate ? ` · ${(gates.ok ? gates.data : []).find((g) => g.id === gate)?.name ?? "one gate"}` : ""}
+              {plate ? ` · plate ${plate}` : ""}
+            </span>
+          </summary>
         <Form action="/dashboard/gate-log" className="dash-filters">
           {tab === "walkins" && <input type="hidden" name="tab" value="walkins" />}
           <div className="dash-field">
@@ -133,7 +146,13 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
           <button type="submit" className="dash-btn dash-btn--primary dash-btn--sm">
             Show
           </button>
+          {filtered && (
+            <Link href={tab === "walkins" ? "/dashboard/gate-log?tab=walkins" : "/dashboard/gate-log"} className="dash-quiet-link">
+              Clear
+            </Link>
+          )}
         </Form>
+        </details>
       )}
 
       {tab === "entries" && entries && (
@@ -153,11 +172,8 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                     <tr>
                       <th scope="col">Arrived</th>
                       <th scope="col">Guest</th>
-                      <th scope="col">Visiting</th>
-                      <th scope="col">Plate</th>
                       <th scope="col">How they got in</th>
-                      <th scope="col">Trust</th>
-                      <th scope="col">Gate and guard</th>
+                      <th scope="col">Gate</th>
                       <th scope="col">Left</th>
                     </tr>
                   </thead>
@@ -169,15 +185,24 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                         </td>
                         <td data-label="Guest">
                           <Guest e={e} media={media} />
+                          <span className="dash-hint">
+                            to {e.address ?? "an unknown home"}
+                            {e.plate && (
+                              <>
+                                {" · "}
+                                <span className="dash-plate">{e.plate}</span>
+                              </>
+                            )}
+                          </span>
                           {e.note && <span className="dash-hint">{e.note}</span>}
                         </td>
-                        <td data-label="Visiting">{e.address ?? <span className="dash-muted">Unknown</span>}</td>
-                        {/* Empty on phones when there is no plate, so the stacked card stays short. */}
-                        <td data-label="Plate" className="dash-plate-cell">
-                          {e.plate && <span className="dash-plate">{e.plate}</span>}
-                        </td>
                         <td data-label="How they got in">
-                          <Badge tone={TONE[e.method]}>{ENTRY_METHOD[e.method]}</Badge>
+                          <span className="dash-badges">
+                            <Badge tone={TONE[e.method]}>{ENTRY_METHOD[e.method]}</Badge>
+                            {e.trust && <Badge tone={TRUST[e.trust].tone}>{TRUST[e.trust].label}</Badge>}
+                            {e.disputed_at && <Badge tone="bad">Home said NO</Badge>}
+                          </span>
+                          {e.caller && <span className="dash-hint tnum">Caller {e.caller}</span>}
                           {(e.method === "walk_in_admitted" || e.method === "refused") && (e.decided_by || e.reason) && (
                             <span className="dash-hint">
                               {e.decided_by && `By ${e.decided_by}`}
@@ -191,10 +216,7 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                             </span>
                           )}
                         </td>
-                        <td data-label="Trust">
-                          <Trust e={e} />
-                        </td>
-                        <td data-label="Gate and guard">
+                        <td data-label="Gate">
                           {e.gate ?? "Unknown gate"}
                           {e.guard && <span className="dash-hint">{e.guard}</span>}
                         </td>
@@ -240,10 +262,7 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                     <tr>
                       <th scope="col">When</th>
                       <th scope="col">Guest</th>
-                      <th scope="col">Visiting</th>
                       <th scope="col">Decision</th>
-                      <th scope="col">Who decided</th>
-                      <th scope="col">Reason given</th>
                       <th scope="col">Gate</th>
                     </tr>
                   </thead>
@@ -255,9 +274,11 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                         </td>
                         <td data-label="Guest">
                           <Guest e={e} media={media} />
-                          {e.plate && <span className="dash-hint dash-plate">{e.plate}</span>}
+                          <span className="dash-hint">
+                            to {e.address ?? "an unknown home"}
+                            {e.plate ? ` · ${e.plate}` : ""}
+                          </span>
                         </td>
-                        <td data-label="Visiting">{e.address ?? <span className="dash-muted">Unknown</span>}</td>
                         <td data-label="Decision">
                           <span className="dash-badges">
                             {e.method === "refused" ? <Badge tone="bad">Refused</Badge> : <Badge tone="warn">{ENTRY_METHOD.walk_in_admitted}</Badge>}
@@ -269,9 +290,10 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                               The person who decided was also the one on the gate: no second person saw it.{e.method !== "refused" && " The home was texted."}
                             </span>
                           )}
+                          <span className="dash-hint">
+                            {e.decided_by ?? e.guard ?? "Who decided was not recorded"}: {e.reason ?? e.note ?? "no reason given"}
+                          </span>
                         </td>
-                        <td data-label="Who decided">{e.decided_by ?? e.guard ?? <span className="dash-muted">Not recorded</span>}</td>
-                        <td data-label="Reason given">{e.reason ?? e.note ?? <span className="dash-muted">None given</span>}</td>
                         <td data-label="Gate">{e.gate ?? "Unknown gate"}</td>
                       </tr>
                     ))}
@@ -339,21 +361,6 @@ function Guest({ e, media }: { e: GateEntry; media: boolean }) {
           {e.plate_photo_id && <PhotoButton photoId={e.plate_photo_id} label="Plate photo" alt={`Plate photo for ${unnamed ? "the visitor" : e.guest_name}`} />}
         </span>
       )}
-    </>
-  );
-}
-
-/** How far the estate can trust the entry, who rang, and whether the home said it was not them. */
-function Trust({ e }: { e: GateEntry }) {
-  return (
-    <>
-      {e.trust ? <Badge tone={TRUST[e.trust].tone}>{TRUST[e.trust].label}</Badge> : <span className="dash-muted">Not let in</span>}
-      {e.disputed_at && (
-        <span className="dash-hint">
-          <Badge tone="bad">Home said NO</Badge> {fmtDateTime(e.disputed_at)}
-        </span>
-      )}
-      {e.caller && <span className="dash-hint tnum">Caller {e.caller}</span>}
     </>
   );
 }

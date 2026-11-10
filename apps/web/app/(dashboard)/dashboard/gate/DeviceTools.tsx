@@ -20,13 +20,14 @@ function PairingCode({ code, label, onDone }: { code: string; label: string; onD
   );
 }
 
-export function RegisterDevice({ gates }: { gates: Gate[] }) {
+export function RegisterDevice({ gates, gate }: { gates: Gate[]; gate?: Gate }) {
   const [shown, setShown] = useState<{ code: string; label: string } | null>(null);
   if (shown) return <PairingCode code={shown.code} label={shown.label} onDone={() => setShown(null)} />;
-  if (gates.length === 0) return <p className="dash-muted">Add a gate first, then register its phone.</p>;
+  if (!gate && gates.length === 0) return <p className="dash-muted">Add a gate first, then register its phone.</p>;
   return (
     <ActionForm
       action={createDevice}
+      hidden={gate ? { gate_id: gate.id } : undefined}
       submit="Register phone"
       showMessage={false}
       onDone={(s) => {
@@ -36,10 +37,10 @@ export function RegisterDevice({ gates }: { gates: Gate[] }) {
     >
       <div className="dash-grid2">
         <div className="dash-field">
-          <label htmlFor="dev-label">Name for this phone</label>
-          <input id="dev-label" name="label" className="dash-input" placeholder="For example, Main gate phone" required maxLength={80} />
+          <label htmlFor={`dev-label-${gate?.id ?? "any"}`}>Name for this phone</label>
+          <input id={`dev-label-${gate?.id ?? "any"}`} name="label" className="dash-input" placeholder="For example, Main gate phone" required maxLength={80} />
         </div>
-        <div className="dash-field">
+        {!gate && <div className="dash-field">
           <label htmlFor="dev-gate">Gate</label>
           <select id="dev-gate" name="gate_id" className="dash-input" required>
             {gates.map((g) => (
@@ -48,7 +49,7 @@ export function RegisterDevice({ gates }: { gates: Gate[] }) {
               </option>
             ))}
           </select>
-        </div>
+        </div>}
       </div>
     </ActionForm>
   );

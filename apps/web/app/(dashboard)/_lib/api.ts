@@ -28,16 +28,23 @@ export async function apiRequest<T>(path: string, init: Init = {}): Promise<ApiR
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(init.json);
   }
+  const method = init.method ?? "GET";
+  const send = () =>
+    fetch(`${base}${path}`, { method, headers, body, cache: "no-store", signal: AbortSignal.timeout(init.timeoutMs ?? 15000) });
+  const causeOf = (err: unknown) => (err instanceof Error ? ((err.cause as { code?: string } | undefined)?.code ?? err.name) : "unknown");
   let res: Response;
   try {
-    res = await fetch(`${base}${path}`, {
-      method: init.method ?? "GET",
-      headers,
-      body,
-      cache: "no-store",
-      signal: AbortSignal.timeout(init.timeoutMs ?? 15000),
-    });
-  } catch {
+    try {
+      res = await send();
+    } catch (err) {
+      // A kept-alive connection the API closed a moment ago fails at once with ECONNRESET.
+      // A GET is safe to send again, once; a change is never repeated behind the user's back.
+      if (method !== "GET" || !["ECONNRESET", "UND_ERR_SOCKET", "EPIPE"].includes(causeOf(err))) throw err;
+      res = await send();
+    }
+  } catch (err) {
+    // Logged with the path and the cause only: no token, no body.
+    console.error(`api ${method} ${path.split("?")[0]} failed: ${causeOf(err)}`);
     return { ok: false, status: 0, error: "We could not reach the Gatelog server. Check your connection and try again." };
   }
   if (res.status === 204) return { ok: true, status: 204, data: null as T };
