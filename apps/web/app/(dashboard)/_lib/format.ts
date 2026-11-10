@@ -1,5 +1,6 @@
 import type {
   ContactPref,
+  EntryTrust,
   DirectoryCategory,
   EntryMethod,
   ExitMethod,
@@ -26,9 +27,19 @@ export const ENTRY_METHOD: Record<EntryMethod, string> = {
   code: "Code",
   phone_announced: "Phone announced",
   callback_confirmed: "Callback confirmed",
+  pin_confirmed: "Home PIN given on a call",
   walk_in_admitted: "Walk-in admitted",
   refused: "Refused",
 };
+
+export const TRUST: Record<EntryTrust, { label: string; tone: "ok" | "info" | "warn" }> = {
+  verified: { label: "Verified", tone: "ok" },
+  pin_verified: { label: "PIN verified", tone: "info" },
+  unverified: { label: "Unverified", tone: "warn" },
+};
+
+/** Roles that may play a visitor's voice clip, view gate photos and type a name in. */
+export const MEDIA_ROLES: readonly string[] = ["admin", "security_head"];
 
 export const EXIT_METHOD: Record<ExitMethod, string> = {
   code: "Code at the gate",
@@ -75,7 +86,7 @@ export const RIDE_STATE: Record<RideState, { label: string; tone: "ok" | "warn" 
 
 export const RIDE_CONFIRM: Record<RideConfirm | "not recorded", string> = {
   card: "Estate card",
-  house_code: "House code",
+  house_code: "Home PIN",
   guard: "Vouched by the guard",
   rider: "Vouched by the rider",
   "not recorded": "Not recorded",

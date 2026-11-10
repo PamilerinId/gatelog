@@ -1,24 +1,66 @@
 /* ------------------------------------------------------------------
-   Gatelog dashboard. Same tokens as the landing page (globals.css),
-   calmer and denser. Every class is prefixed dash- so nothing here
-   touches the landing page.
-   Colour meanings carry over: green verified or working, amber needs
-   attention, red refused, revoked or broken.
+   Gatelog dashboard, after docs/gatelog-handoff/design (Main.dc.html
+   and README.md). Charcoal and sterile white only; colour is kept for
+   map markers and states (yellow: offline, unverified, needs attention;
+   red: SOS, refused, broken; blue: guards and the shuttle).
+   Inter for the interface, JetBrains Mono for data. Every class is
+   prefixed dash- so nothing here touches the landing page.
+
+   The old token names (navy, paper, slate...) are kept and re-pointed,
+   so every page picks up the new look: "navy" now means the strong
+   ink colour (charcoal by day, near-white at night).
+   Night overrides live in map.css on .dash-themed[data-theme="night"].
 ------------------------------------------------------------------- */
 
 .dash {
-  --dash-side: 248px;
+  --font: "Inter Variable", Inter, system-ui, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+  --wide: 100%;
+  --radius: 12px;
+  --radius-card: 20px;
   --dash-pad: clamp(16px, 3vw, 40px);
-  --dash-surface: var(--white);
-  --pass-soft: rgb(30 107 79 / 0.1);
-  --lamp-soft: rgb(227 168 87 / 0.18);
-  --stop-soft: rgb(168 69 47 / 0.1);
-  --navy-soft: rgb(13 42 82 / 0.07);
+
+  --paper: #f2f2f0;
+  --paper-alt: #e8e8e6;
+  --white: #ffffff;
+  --dash-surface: #ffffff;
+  --navy: #141414;
+  --navy-deep: #000000;
+  --ink: #141414;
+  --text: #141414;
+  --slate: #4a4a48;
+  --line: rgb(20 20 20 / 0.1);
+  --line-strong: rgb(20 20 20 / 0.22);
+  --navy-soft: rgb(20 20 20 / 0.05);
+  --pass: #141414;
+  --pass-soft: rgb(20 20 20 / 0.06);
+  --lamp: #f5c542;
+  --lamp-mark: #f5c542;
+  --lamp-ink: #8a5a00;
+  --lamp-soft: rgb(245 197 66 / 0.22);
+  --stop: #d92d20;
+  --stop-text: #b42318;
+  --stop-soft: rgb(217 45 32 / 0.08);
+
+  /* map and glass, from Main.dc.html */
+  --gate: #141414;
+  --guard: #1d63c9;
+  --alert: #e5372b;
+  --entry: #ffffff;
+  --halo: #ffffff;
+  --label: #141414;
+  --panel: rgb(250 250 248 / 0.84);
+  --panel-solid: rgb(250 250 248 / 0.95);
+  --btn-bg: rgb(20 20 20 / 0.04);
+  --shadow: 0 18px 50px rgb(20 20 20 / 0.14);
+
+  font-family: var(--font);
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
   min-height: 100vh;
   min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
 }
 
 .dash :focus-visible {
@@ -30,176 +72,211 @@
   color: var(--navy);
 }
 
-/* ---------------- shell ---------------- */
+.dash-mono,
+.dash .tnum {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- shell: header strip on top, page below, map behind ---------------- */
 
 .dash-shell {
-  display: grid;
-  grid-template-columns: 1fr;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
   min-height: 100dvh;
 }
 
-.dash-side {
-  background: var(--navy-deep);
-  color: var(--ice);
-  display: flex;
-  flex-direction: column;
-}
-.dash-side :focus-visible {
-  outline-color: var(--ice);
-}
-
 .dash-main {
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 20px var(--dash-pad) 64px;
-  max-width: 1200px;
   width: 100%;
 }
 
-@media (min-width: 900px) {
-  .dash-shell {
-    grid-template-columns: var(--dash-side) minmax(0, 1fr);
-  }
-  .dash-side {
-    position: sticky;
-    top: 0;
-    height: 100dvh;
-    overflow-y: auto;
-  }
-  .dash-main {
-    padding-top: 32px;
-  }
+.dash-glass {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
 }
 
-/* ---------------- brand and nav ---------------- */
-
-.dash-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: inherit;
-  min-width: 0;
-}
-.dash .dash-side .dash-brand {
-  color: var(--white);
-}
-.dash-brand > span:last-child {
+.dash-strip {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 8px;
+  padding: 10px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
 }
-.dash-brand__mark {
-  flex-shrink: 0;
-  width: 14px;
-  height: 22px;
-  border: 2px solid currentColor;
-  border-bottom-width: 6px;
-  border-radius: var(--radius);
+.dash-strip__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
 }
-.dash-brand__name {
-  font-weight: 700;
-  font-stretch: var(--wide);
-  font-size: 17px;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-}
-.dash-brand__estate {
-  font-size: 13px;
-  color: var(--ice-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.dash .dash-brand--dark {
-  color: var(--navy);
-  margin-bottom: 20px;
-}
-
-.dash-nav__bar {
+.dash .dash-strip__brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  min-width: 0;
+  color: var(--ink);
+  text-decoration: none;
 }
-.dash-nav__toggle {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--ice-line);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ice);
-  font: inherit;
-  font-size: 14px;
+.dash-strip__name {
   font-weight: 600;
-  cursor: pointer;
-  max-width: 55%;
-  white-space: nowrap;
+  letter-spacing: 0.2em;
+}
+.dash-strip__estate,
+.dash-strip__meta,
+.dash-strip__note {
+  color: var(--slate);
+}
+.dash-strip__estate {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-strip__meta {
+  flex: 1 1 200px;
+}
+.dash-strip__right,
+.dash-strip__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.dash-mode,
+.dash-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.dash-chip-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--slate);
+}
+.dash-mode:hover,
+.dash-chip-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* ---------------- nav (the second row of the header strip) ---------------- */
+
+.dash-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.dash-nav__toggle {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-nav__panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-nav[data-open="true"] .dash-nav__panel {
+  display: flex;
 }
 .dash-nav__list {
   list-style: none;
   margin: 0;
-  padding: 0 8px 12px;
-  display: none;
-}
-.dash-nav[data-open="true"] .dash-nav__list {
-  display: block;
-}
-.dash-nav__link {
-  display: block;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  color: var(--ice-soft);
-  text-decoration: none;
-  font-weight: 500;
-  border-left: 3px solid transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .dash .dash-nav__link {
-  color: var(--ice-soft);
+  display: block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--slate);
 }
 .dash .dash-nav__link:hover {
-  color: var(--white);
-  background: rgb(232 238 246 / 0.06);
+  color: var(--ink);
+  background: var(--navy-soft);
 }
 .dash .dash-nav__link[aria-current="page"] {
-  color: var(--white);
-  background: rgb(232 238 246 / 0.1);
-  border-left-color: var(--pass-lift);
+  color: var(--ink);
+  background: var(--navy-soft);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
 }
-
-.dash-who {
-  display: none;
-  padding: 16px 20px 20px;
-  border-top: 1px solid var(--ice-line);
-  margin-top: auto;
+.dash-strip__user {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 11px;
+  color: var(--slate);
 }
-.dash-who__name {
-  font-weight: 600;
-  color: var(--white);
-}
-.dash-who__role {
-  font-size: 13px;
-  color: var(--ice-soft);
-  margin-bottom: 8px;
-}
-.dash-nav[data-open="true"] ~ .dash-who {
-  display: block;
+.dash-strip__user form {
+  margin: 0;
 }
 
 @media (min-width: 900px) {
-  .dash-nav__bar {
-    padding: 22px 20px 18px;
+  .dash-nav {
+    flex-direction: row;
+    align-items: center;
   }
   .dash-nav__toggle {
     display: none;
   }
-  .dash-nav__list {
-    display: block;
+  .dash-nav__panel {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
   }
-  .dash-who {
-    display: block;
+  .dash-nav__list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .dash .dash-nav__link {
+    padding: 6px 10px;
   }
 }
 
@@ -214,9 +291,6 @@
   text-decoration: underline;
   text-underline-offset: 4px;
   cursor: pointer;
-}
-.dash-side .dash-link-btn {
-  color: var(--ice);
 }
 
 /* ---------------- type ---------------- */
@@ -439,7 +513,7 @@
   color: var(--white);
 }
 .dash .dash-btn--danger:hover:not(:disabled) {
-  background: #8c3826;
+  background: var(--stop-text);
 }
 
 /* ---------------- forms ---------------- */
@@ -621,12 +695,12 @@
 .dash-msg--error {
   background: var(--stop-soft);
   border-color: var(--stop);
-  color: #7a2f1f;
+  color: var(--stop-text);
 }
 .dash-msg--ok {
   background: var(--pass-soft);
   border-color: var(--pass);
-  color: #174f3b;
+  color: var(--ink);
 }
 .dash-msg--warn {
   background: var(--lamp-soft);

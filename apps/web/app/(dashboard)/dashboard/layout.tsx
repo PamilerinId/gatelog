@@ -1,8 +1,9 @@
-import { getEstate, getMap, getMe } from "@/app/(dashboard)/_lib/api";
+import { getEstate, getMap, getMe, load } from "@/app/(dashboard)/_lib/api";
 import { POSITION_ROLES, ROLE } from "@/app/(dashboard)/_lib/format";
-import { Nav, type NavItem } from "@/app/(dashboard)/_components/Nav";
+import type { ZoneNode } from "@/app/(dashboard)/_lib/types";
+import type { NavItem } from "@/app/(dashboard)/_components/Nav";
+import { HeaderStrip } from "@/app/(dashboard)/_map/HeaderStrip";
 import { MapShell } from "@/app/(dashboard)/_map/MapShell";
-import { ThemeControl } from "@/app/(dashboard)/_map/ThemeControl";
 import { signOut } from "./actions";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -23,9 +24,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     );
   }
 
-  // The map behind every page, and whether the estate runs a shuttle (for the nav).
-  const [map, estate] = await Promise.all([getMap(), getEstate()]);
+  // The map behind every page, whether the estate runs a shuttle (for the nav), and the counts
+  // in the header strip.
+  const [map, estate, register] = await Promise.all([getMap(), getEstate(), load<ZoneNode[]>("/v1/admin/register")]);
   const shuttle = estate.ok && estate.data.settings.shuttle_enabled;
+  const homes = register.ok ? register.data.reduce((n, z) => n + z.streets.reduce((m, st) => m + st.homes.length, 0), 0) : null;
+  const place = estate.ok ? [estate.data.lga, estate.data.state].filter(Boolean).join(", ") : "";
 
   // The treasurer looks after the money side: what was sent and what it will cost.
   const treasurer = me.role === "treasurer";
@@ -56,17 +60,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
       admin={admin}
     >
       <div className="dash-shell">
-        <aside className="dash-side">
-          <Nav items={items} estate={me.estate.name} />
-          <div className="dash-who">
-            <p className="dash-who__name">{me.name}</p>
-            <p className="dash-who__role">{ROLE[me.role]}</p>
-            <ThemeControl />
-            <form action={signOut}>
-              <button className="dash-link-btn">Sign out</button>
-            </form>
-          </div>
-        </aside>
+        <HeaderStrip
+          estate={me.estate.name}
+          place={place}
+          gates={map.ok ? map.data.gates.length : 0}
+          homes={homes}
+          items={items}
+          user={
+            <>
+              <span className="dash-strip__who">
+                {me.name} · {ROLE[me.role]}
+              </span>
+              <form action={signOut}>
+                <button className="dash-chip-btn">SIGN OUT</button>
+              </form>
+            </>
+          }
+        />
         <main id="main" className="dash-main">
           {!admin && (
             <p className="dash-banner" role="note">

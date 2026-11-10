@@ -1,4 +1,2 @@
 # Copied from node_modules before dev and build (scripts/map-assets.mjs).
 /public/map/maplibre-gl-worker.mjs
-# Local map tile extracts (see docs/map-tiles.md). Production tiles live in a Gatelog bucket.
-/public/tiles/

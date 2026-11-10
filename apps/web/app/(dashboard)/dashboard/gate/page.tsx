@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getMe, load } from "@/app/(dashboard)/_lib/api";
+import { getEstate, getMe, load } from "@/app/(dashboard)/_lib/api";
 import { GUARD_ROLE, SELFIE, SHIFT_END, fmtDate, fmtDateTime } from "@/app/(dashboard)/_lib/format";
 import type { Device, Gate, Guard, Shift } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
@@ -20,8 +20,9 @@ const STATUS: Record<Device["status"], { label: string; tone: "ok" | "warn" | "b
 const SHIFT_DAYS = 14;
 
 export default async function GatePage() {
-  const me = await getMe();
+  const [me, estate] = await Promise.all([getMe(), getEstate()]);
   const admin = me.role === "admin";
+  const shuttle = estate.ok && estate.data.settings.shuttle_enabled;
   // Selfies are personal data: only the estate admin and the security head may open them.
   const canSeeSelfies = admin || me.role === "security_head";
   const since = new Date(Date.now() - SHIFT_DAYS * 86_400_000).toISOString();
@@ -41,6 +42,7 @@ export default async function GatePage() {
         <p className="dash-muted dash-small">
           Each person starts a shift on a gate phone with their own PIN and a selfie. The CSO signs in on any gate phone the same way and gets
           the CSO view: who is on duty at each gate, guests past their time, walk-ins and refusals.
+          {shuttle && " Shuttle riders sign in the same way, pick their motorcycle, and their phone reports where they are while the shift is open."}
         </p>
         {!guards.ok ? (
           <ApiError error={guards.error} />
@@ -65,7 +67,7 @@ export default async function GatePage() {
               </thead>
               <tbody>
                 {guards.data.map((g) => (
-                  <GuardRow key={g.id} g={g} admin={admin} />
+                  <GuardRow key={g.id} g={g} admin={admin} shuttle={shuttle} />
                 ))}
               </tbody>
             </table>
@@ -80,7 +82,7 @@ export default async function GatePage() {
                   <label htmlFor="guard-name">Full name</label>
                   <input id="guard-name" name="name" className="dash-input" required minLength={2} maxLength={120} />
                 </div>
-                <RoleField id="guard-role" />
+                <RoleField id="guard-role" shuttle={shuttle} />
               </div>
               <ConsentCheck />
             </ActionForm>
@@ -210,15 +212,19 @@ export default async function GatePage() {
   );
 }
 
-function RoleField({ id, value = "guard" }: { id: string; value?: string }) {
+function RoleField({ id, value = "guard", shuttle }: { id: string; value?: string; shuttle: boolean }) {
   return (
     <div className="dash-field">
       <label htmlFor={id}>Role</label>
       <select id={id} name="role" className="dash-input" defaultValue={value}>
         <option value="guard">Guard</option>
         <option value="cso">CSO (chief security officer)</option>
+        {(shuttle || value === "rider") && <option value="rider">Shuttle rider</option>}
       </select>
-      <span className="dash-hint">The CSO signs in on any gate phone and gets the CSO view.</span>
+      <span className="dash-hint">
+        The CSO signs in on any gate phone and gets the CSO view.
+        {shuttle && " A shuttle rider gets the rider view; their position is shared only while their shift is open."}
+      </span>
     </div>
   );
 }
@@ -238,13 +244,13 @@ function ConsentCheck({ checked }: { checked?: boolean }) {
   );
 }
 
-function GuardRow({ g, admin }: { g: Guard; admin: boolean }) {
+function GuardRow({ g, admin, shuttle }: { g: Guard; admin: boolean; shuttle: boolean }) {
   return (
     <tr>
       <td data-label="Name">
         <strong>{g.name}</strong>
       </td>
-      <td data-label="Role">{g.role === "cso" ? <Badge tone="info">{GUARD_ROLE.cso}</Badge> : GUARD_ROLE.guard}</td>
+      <td data-label="Role">{g.role === "guard" ? GUARD_ROLE.guard : <Badge tone="info">{GUARD_ROLE[g.role]}</Badge>}</td>
       <td data-label="Selfie consent">
         {g.consent_at ? (
           <>
@@ -275,7 +281,7 @@ function GuardRow({ g, admin }: { g: Guard; admin: boolean }) {
             <details className="dash-details dash-details--inline">
               <summary>Edit</summary>
               <ActionForm action={updateGuard} hidden={{ id: g.id }} reset={false} submit="Save" submitClass="dash-btn dash-btn--primary dash-btn--sm">
-                <RoleField id={`role-${g.id}`} value={g.role} />
+                <RoleField id={`role-${g.id}`} value={g.role} shuttle={shuttle} />
                 <ConsentCheck checked={g.consent_at != null} />
               </ActionForm>
             </details>

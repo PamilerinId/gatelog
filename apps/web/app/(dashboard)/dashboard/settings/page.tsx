@@ -5,7 +5,8 @@ import type { Estate, StaffMember } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
 import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
 import { ApiError, Badge, PageHead, Section } from "@/app/(dashboard)/_components/ui";
-import { createStaff, setStaffActive, updateSettings } from "../actions";
+import Link from "next/link";
+import { createStaff, setStaffActive, updateSettings, updateShuttleSettings } from "../actions";
 import { MessageName } from "./MessageName";
 
 export const metadata: Metadata = { title: "Staff and settings" };
@@ -113,6 +114,20 @@ export default async function SettingsPage() {
       <Section title="Estate settings" id="settings">
         {!estate.ok ? <ApiError error={estate.error} /> : <SettingsForm estate={estate.data} />}
       </Section>
+
+      <Section title="Estate map" id="map">
+        <p className="dash-muted dash-small">
+          The satellite map behind the dashboard is locked to the estate&rsquo;s boundary. Draw the boundary, pin each gate, and add the places
+          residents ride the shuttle to.
+        </p>
+        <Link href="/dashboard/settings/map" className="dash-btn dash-btn--ghost dash-btn--sm">
+          Edit the estate map
+        </Link>
+      </Section>
+
+      <Section title="Estate shuttle" id="shuttle">
+        {!estate.ok ? <ApiError error={estate.error} /> : <ShuttleForm estate={estate.data} />}
+      </Section>
     </>
   );
 }
@@ -141,6 +156,38 @@ function SettingsForm({ estate }: { estate: Estate }) {
       </Setting>
       <Setting id="max_visits_per_home_per_day" label="Most visits per home per day" hint="Past this, the resident is asked to call the gate instead. Between 5 and 500.">
         <input id="max_visits_per_home_per_day" name="max_visits_per_home_per_day" type="number" min={5} max={500} className="dash-input" defaultValue={s.max_visits_per_home_per_day} required />
+      </Setting>
+    </ActionForm>
+  );
+}
+
+function ShuttleForm({ estate }: { estate: Estate }) {
+  const s = estate.settings;
+  return (
+    <ActionForm action={updateShuttleSettings} reset={false} submit="Save shuttle settings" className="dash-form dash-settings">
+      <div className="dash-field dash-field--wide">
+        <label className="dash-check">
+          <input type="checkbox" name="shuttle_enabled" defaultChecked={s.shuttle_enabled} />
+          <span>
+            The estate runs a shuttle
+            <span className="dash-hint">
+              Residents can book rides with RIDE, guards can book deliveries and guest runs at the gate, and shuttle riders can sign in. Turn it off
+              and all of this stops; past rides stay in the log.
+            </span>
+          </span>
+        </label>
+      </div>
+      <Setting id="max_rides_per_home_per_day" label="Most rides per home per day" hint="Rides one home can book by WhatsApp or SMS in a day. Past this, the resident is asked to call the CSO. Between 2 and 200.">
+        <input
+          id="max_rides_per_home_per_day"
+          name="max_rides_per_home_per_day"
+          type="number"
+          min={2}
+          max={200}
+          className="dash-input"
+          defaultValue={s.max_rides_per_home_per_day}
+          required
+        />
       </Setting>
     </ActionForm>
   );

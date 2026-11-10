@@ -70,6 +70,11 @@ const FIELD_NAMES: Record<string, string> = {
   plate: "Plate",
   description: "Description",
   short_name: "Message name",
+  max_rides_per_home_per_day: "Rides per home per day",
+  ring: "Boundary",
+  kind: "Kind",
+  lat: "Position",
+  lng: "Position",
 };
 
 export function errorMessage(status: number, payload: unknown): string {

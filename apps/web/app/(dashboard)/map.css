@@ -1,10 +1,10 @@
 /* ------------------------------------------------------------------
-   The estate map behind the dashboard, and the dashboard's night
-   colours. The map is one fixed layer under the page:
+   The satellite map behind the dashboard, night tokens, the overview
+   panels and the design-system restyle of shared components.
+   The map is one fixed layer under the page:
    - live  (overview)  full strength, interactive, panels float on it
    - edit  (editor)    the same, with the editor's panel
-   - still (elsewhere) dimmed behind a paper scrim, not interactive,
-                       so tables read exactly as they do without it
+   - still (elsewhere) behind the page's surface panel, dimmed, still
 ------------------------------------------------------------------- */
 
 .dash-themed {
@@ -15,72 +15,64 @@
   color: var(--text);
 }
 
-/* Night: the same roles, re-pointed. Navy stays "structure" but turns light, so links, the
-   primary button and focus rings read on a dark page; surfaces go deep navy. Every token the
-   dashboard reads from .dash is restated here, because a custom property that refers to another
-   is resolved where it is declared. */
+/* Night: charcoal, from design/README.md. Every token is restated here because a custom property
+   that refers to another is resolved where it is declared. */
 .dash-themed[data-theme="night"] {
   color-scheme: dark;
-  --paper: #0a1424;
-  --paper-alt: #0f1c30;
-  --white: #13223a;
-  --dash-surface: #13223a;
-  --navy: #a9c7f0;
-  --navy-deep: #050c18;
-  --navy-night: #03080f;
-  --ink: #eef3fa;
-  --text: #d5deea;
-  --slate: #a7b5c8;
-  --line: rgb(232 238 246 / 0.14);
-  --line-strong: rgb(232 238 246 / 0.3);
-  --pass: #7fd0a6;
-  --pass-soft: rgb(127 208 166 / 0.14);
-  --lamp: #e3a857;
-  --lamp-ink: #f2c27e;
-  --lamp-mark: #e3a857;
-  --lamp-soft: rgb(227 168 87 / 0.16);
-  --stop: #f19c86;
-  --stop-soft: rgb(241 156 134 / 0.14);
-  --navy-soft: rgb(169 199 240 / 0.12);
-}
-/* The side bar is dark in both themes: its "white" text stays white. */
-.dash-themed[data-theme="night"] .dash-side {
-  --white: #ffffff;
-}
-.dash-themed[data-theme="night"] .dash-btn--primary:hover:not(:disabled) {
-  background: #cfe0f7;
-}
-.dash-themed[data-theme="night"] .dash-btn--danger:hover:not(:disabled) {
-  background: #f6b9a8;
-}
-.dash-themed[data-theme="night"] .dash-msg--error {
-  color: #f8c7b9;
-}
-.dash-themed[data-theme="night"] .dash-msg--ok {
-  color: #b5e6cb;
+  --paper: #111111;
+  --paper-alt: #161616;
+  --white: #1c1c1c;
+  --dash-surface: #1c1c1c;
+  --navy: #f4f4f2;
+  --navy-deep: #ffffff;
+  --ink: #f4f4f2;
+  --text: #f4f4f2;
+  --slate: #a8a8a6;
+  --line: rgb(244 244 242 / 0.1);
+  --line-strong: rgb(244 244 242 / 0.24);
+  --navy-soft: rgb(244 244 242 / 0.06);
+  --pass: #f4f4f2;
+  --pass-soft: rgb(244 244 242 / 0.08);
+  --lamp-ink: #f5c542;
+  --lamp-soft: rgb(245 197 66 / 0.14);
+  --stop: #ff5a4e;
+  --stop-text: #ff7d73;
+  --stop-soft: rgb(255 90 78 / 0.12);
+  --gate: #f4f4f2;
+  --guard: #5aa9ff;
+  --alert: #ff5a4e;
+  --entry: #f4f4f2;
+  --halo: #111111;
+  --label: #d6d6d4;
+  --panel: rgb(17 17 17 / 0.76);
+  --panel-solid: rgb(22 22 22 / 0.94);
+  --btn-bg: rgb(244 244 242 / 0.06);
+  --shadow: 0 18px 50px rgb(0 0 0 / 0.5);
 }
 .dash-themed[data-theme="night"] .dash-dialog::backdrop {
-  background: rgb(0 0 0 / 0.6);
+  background: rgb(0 0 0 / 0.65);
 }
-
-.dash-shell {
-  position: relative;
-  z-index: 1;
+@media (max-width: 899px) {
+  /* The fabric twill from the design, on phones at night. */
+  .dash-themed[data-theme="night"] {
+    background:
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.03) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.35) 0 1px, transparent 1px 3px),
+      #111111;
+  }
 }
 
 /* ---------------- the map layer ---------------- */
 
 /* .dash-themed raises specificity over MapLibre's own .maplibregl-map { position: relative }. */
-.dash-themed .dash-map {
+.dash-themed .dash-map,
+.dash-map-labels {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: var(--paper);
 }
-@media (min-width: 900px) {
-  .dash-themed .dash-map {
-    left: var(--dash-side);
-  }
+.dash-themed .dash-map {
+  background: var(--paper);
 }
 .dash-map[data-mode="none"] {
   display: none;
@@ -88,400 +80,741 @@
 .dash-map[data-mode="still"] {
   pointer-events: none;
 }
-/* The scrim: the map shows through faintly, tables and text sit on what is nearly plain paper. */
+/* Behind other pages the imagery is a faint texture: the page sits on a solid panel anyway. */
 .dash-map[data-mode="still"]::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 3;
   background: var(--paper);
-  opacity: 0.84;
+  opacity: 0.55;
 }
 .dash-map[data-mode="still"] .maplibregl-ctrl-bottom-right {
   display: none;
 }
 .dash-map .maplibregl-ctrl-bottom-right {
-  bottom: 22px;
+  bottom: 64px;
+  right: 6px;
 }
-.dash-map .maplibregl-canvas:focus-visible {
-  outline: 3px solid var(--navy);
-  outline-offset: -3px;
+.dash-map .maplibregl-ctrl-group {
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
-.dash-themed[data-theme="night"] .maplibregl-ctrl-group {
-  background: var(--dash-surface);
-}
-.dash-themed[data-theme="night"] .maplibregl-ctrl-group button + button {
+.dash-map .maplibregl-ctrl-group button + button {
   border-top-color: var(--line);
 }
 .dash-themed[data-theme="night"] .maplibregl-ctrl button .maplibregl-ctrl-icon {
   filter: invert(1);
 }
+.dash-map .maplibregl-canvas:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: -3px;
+}
+.dash-map .maplibregl-cooperative-gesture-screen {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* Coordinates along the edges, as in the design. */
+.dash-map-labels {
+  pointer-events: none;
+  overflow: hidden;
+}
+.dash-map-label {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--label);
+  text-shadow:
+    0 0 3px var(--halo),
+    0 0 3px var(--halo),
+    0 0 2px var(--halo);
+  white-space: nowrap;
+}
+.dash-map-label--lat {
+  transform: translateY(-50%);
+}
+.dash-map-label--lng {
+  transform: translate(-50%, -100%);
+}
+
+@media (min-width: 900px) {
+  /* Wide screens: leave the bottom-right for the zoom buttons above the imagery credit. */
+  .dash-map .maplibregl-ctrl-bottom-right {
+    bottom: 40px;
+  }
+}
 
 /* In live and edit modes the page lets the map take the pointer, except where it has panels. */
-.dash-themed[data-map="live"] .dash-main,
-.dash-themed[data-map="edit"] .dash-main {
+.dash-themed:is([data-map="live"], [data-map="edit"]) :is(.dash-shell, .dash-main) {
   pointer-events: none;
 }
-.dash-themed[data-map="live"] .dash-main :is(.dash-float, .dash-live__after, .dash-prompt, .dash-crumbs),
-.dash-themed[data-map="edit"] .dash-main :is(.dash-float, .dash-crumbs) {
+.dash-themed:is([data-map="live"], [data-map="edit"]) .dash-strip {
+  pointer-events: auto;
+}
+.dash-themed[data-map="live"] .dash-main :is(.dash-glass, .dash-live__after, .dash-prompt),
+.dash-themed[data-map="edit"] .dash-main :is(.dash-glass) {
   pointer-events: auto;
 }
 .dash-themed[data-map="live"] .dash-banner {
   display: none;
 }
 
-/* The OpenStreetMap credit, on every page that has the map. */
-.dash-osm {
+/* Every other page sits on one readable surface panel over the still map. */
+.dash-themed:is([data-map="still"], [data-map="none"]) .dash-main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px var(--dash-pad) 48px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+}
+
+/* The imagery credit, on every page with the map. */
+.dash-credit {
   position: fixed;
-  right: 6px;
-  bottom: 4px;
+  right: 16px;
+  bottom: 12px;
   z-index: 5;
   margin: 0;
-  padding: 1px 6px;
+  max-width: calc(100vw - 32px);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   font-size: 11px;
-  line-height: 1.5;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--dash-surface) 88%, transparent);
-}
-.dash .dash-osm a {
+  line-height: 1.4;
   color: var(--slate);
-  text-decoration: none;
 }
-.dash .dash-osm a:hover {
-  text-decoration: underline;
+.dash-themed:is([data-map="still"], [data-map="none"]) .dash-shell {
+  padding-bottom: 48px;
 }
 
-/* ---------------- markers ---------------- */
+/* ---------------- markers (after Main.dc.html) ---------------- */
 
-.dash-pin {
+.gl-m {
   position: relative;
-  width: 16px;
-  height: 16px;
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
+  width: 12px;
+  height: 12px;
+  font-family: var(--mono);
   color: var(--ink);
 }
-.dash-pin__label {
+.gl-m__dot,
+.gl-m__ring,
+.gl-m__guard {
   position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translate(6px, -50%);
-  padding: 1px 6px;
+  border-radius: 50%;
+}
+.gl-m__dot {
+  inset: 0;
+  background: var(--gate);
+  border: 1.5px solid var(--halo);
+}
+.gl-m__ring {
+  inset: -6px;
+  border: 1px solid var(--gate);
+  opacity: 0.6;
+}
+.gl-m__card {
+  position: absolute;
+  right: 6px;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
   white-space: nowrap;
-  border-radius: var(--radius);
-  background: var(--dash-surface);
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 1px 3px rgb(5 18 38 / 0.18);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
-.dash-pin__dot {
+.gl-m__name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.gl-m__sub {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--slate);
+}
+.gl-m__sub:empty {
+  display: none;
+}
+.gl-m__tag {
   position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--dash-surface);
-  border: 3px solid var(--navy);
-  box-shadow: 0 1px 3px rgb(5 18 38 / 0.25);
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--ink);
+  text-shadow:
+    0 0 3px var(--halo),
+    0 0 3px var(--halo),
+    0 0 2px var(--halo);
 }
 
-/* Gates: a solid navy square. A gate whose phone has gone quiet turns red. */
-.dash-pin--gate {
-  width: 18px;
-  height: 18px;
+/* Gates: the guard on duty is a small blue dot beside the gate. Offline gates turn yellow. */
+.gl-m__guard {
+  display: none;
+  width: 8px;
+  height: 8px;
+  left: 14px;
+  top: -8px;
+  background: var(--guard);
+  border: 1px solid var(--halo);
 }
-.dash-pin--gate .dash-pin__dot {
-  border-radius: var(--radius);
-  background: var(--navy);
-  border: 2px solid var(--dash-surface);
-  outline: 1px solid var(--navy);
+.gl-m--gate.has-guard .gl-m__guard {
+  display: block;
 }
-.dash-pin--gate .dash-pin__label {
-  font-weight: 700;
+.gl-m--gate.is-off .gl-m__dot {
+  background: var(--lamp);
 }
-.dash-pin--gate.is-quiet .dash-pin__dot {
-  background: var(--stop);
-  outline-color: var(--stop);
+.gl-m--gate.is-off .gl-m__ring {
+  border-color: var(--lamp);
+  opacity: 0.7;
 }
-.dash-pin--gate.is-quiet .dash-pin__label {
-  border-color: var(--stop);
-  color: var(--stop);
-}
-
-/* Places: rings. A shuttle stop is a diamond, a security post a small square. */
-.dash-pin--place {
-  width: 14px;
-  height: 14px;
-}
-.dash-pin--place .dash-pin__label {
-  font-weight: 500;
-}
-.dash-pin--pickup .dash-pin__dot {
-  border-radius: var(--radius);
-  transform: rotate(45deg) scale(0.85);
-}
-.dash-pin--post .dash-pin__dot {
-  border-radius: var(--radius);
-  border-width: 2px;
+.gl-m--gate.is-off .gl-m__sub {
+  color: var(--lamp-ink);
 }
 
-/* Shuttles: a filled disc with a notch pointing the way the rider is heading. */
-.dash-pin--bike {
-  width: 24px;
-  height: 24px;
+/* Shuttles: the guard style, with a notch for the heading. Grey when the position is old. */
+.gl-m--bike {
+  width: 10px;
+  height: 10px;
 }
-.dash-pin__arrow {
+.gl-m--bike .gl-m__dot {
+  background: var(--guard);
+}
+.gl-m--bike .gl-m__ring {
+  inset: -5px;
+  border-color: var(--guard);
+}
+.gl-m__heading {
+  display: none;
   position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--pass);
-  border: 3px solid var(--dash-surface);
-  box-shadow: 0 1px 4px rgb(5 18 38 / 0.35);
+  inset: -9px;
+  transform: rotate(var(--heading, 0deg));
 }
-.dash-pin--bike.has-heading .dash-pin__arrow::before {
+.gl-m--bike.has-heading .gl-m__heading {
+  display: block;
+}
+.gl-m__heading::before {
   content: "";
   position: absolute;
   left: 50%;
-  top: -9px;
-  width: 0;
-  height: 0;
-  margin-left: -5px;
-  border: 5px solid transparent;
-  border-bottom: 7px solid var(--pass);
-  transform-origin: 5px 18px;
-  transform: rotate(var(--heading, 0deg));
+  top: -3px;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-bottom: 6px solid var(--guard);
+  border-top: 0;
 }
-.dash-pin--bike.is-stale .dash-pin__arrow {
+.gl-m--bike.is-stale .gl-m__dot {
   background: var(--slate);
-  opacity: 0.7;
 }
-.dash-pin--bike.is-stale .dash-pin__arrow::before {
-  border-bottom-color: var(--slate);
+.gl-m--bike.is-stale .gl-m__ring {
+  border-color: var(--slate);
 }
-.dash-pin--bike.is-stale .dash-pin__label {
+.gl-m--bike.is-stale .gl-m__tag {
   color: var(--slate);
 }
 
-/* Rides waiting: amber, with minutes waited. A slow pulse unless motion is reduced. */
-.dash-pin--ride {
-  width: 14px;
-  height: 14px;
+/* Rides waiting for the shuttle: yellow, square, with the minutes waited. */
+.gl-m--ride {
+  width: 10px;
+  height: 10px;
 }
-.dash-pin__pulse {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
+.gl-m--ride .gl-m__dot {
   background: var(--lamp);
-  border: 2px solid var(--dash-surface);
+  border-radius: 2px;
 }
-.dash-pin__pulse::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  border: 2px solid var(--lamp);
-  animation: dash-pulse 2.4s ease-out infinite;
+.gl-m--ride .gl-m__ring {
+  inset: -5px;
+  border-radius: 4px;
+  border-color: var(--lamp);
 }
-.dash-pin--ride .dash-pin__label {
-  border-color: var(--lamp-mark);
-  background: var(--lamp-soft);
-  background: color-mix(in srgb, var(--lamp) 22%, var(--dash-surface));
-  color: var(--ink);
+
+/* Estate places: a small outlined square. */
+.gl-m--place {
+  width: 9px;
+  height: 9px;
 }
-.dash-pin--ride.is-long .dash-pin__label {
-  border-width: 2px;
+.gl-m--place .gl-m__dot {
+  border-radius: 2px;
+  background: var(--halo);
+  border: 1.5px solid var(--gate);
 }
-@keyframes dash-pulse {
+.gl-m--place .gl-m__tag {
+  font-size: 10px;
+  color: var(--label);
+}
+
+/* Recent entries: a ring on the home. */
+.gl-m--entry {
+  width: 10px;
+  height: 10px;
+}
+.gl-m--entry .gl-m__ring {
+  inset: 0;
+  border: 1.5px solid var(--entry);
+  opacity: 1;
+}
+
+/* SOS (Phase 2): red with a pulse. Ready for the data; nothing shows it yet. */
+.gl-m--sos .gl-m__dot {
+  background: var(--alert);
+}
+.gl-m--sos .gl-m__ring {
+  border: 2px solid var(--alert);
+  animation: gl-pulse 1.8s ease-out infinite;
+}
+@keyframes gl-pulse {
   from {
-    transform: scale(1);
     opacity: 0.9;
+    transform: scale(1);
   }
   to {
-    transform: scale(2.6);
     opacity: 0;
+    transform: scale(3.4);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dash-pin__pulse::after {
+  .gl-m--sos .gl-m__ring {
     animation: none;
-    opacity: 0;
+    opacity: 0.35;
   }
 }
 
-/* ---------------- floating panels ---------------- */
-
-.dash-float {
-  background: color-mix(in srgb, var(--dash-surface) 95%, transparent);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 6px 24px rgb(5 18 38 / 0.14);
+/* "ESTATE BOUNDARY · BOUNDS LOCKED" above the top of the outline. */
+.gl-m--bounds {
+  width: 1px;
+  height: 1px;
 }
-@supports (backdrop-filter: blur(4px)) {
-  .dash-float {
-    backdrop-filter: blur(6px);
-  }
-}
-
-.dash-panel {
-  padding: 12px 14px;
-}
-.dash-panel__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 650;
-  color: var(--ink);
-  margin: 0 0 6px;
-}
-.dash-panel__count {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 7px;
-  border-radius: var(--radius);
-  background: var(--navy-soft);
-  color: var(--navy);
-}
-.dash-panel__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.dash-panel__item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 0 8px 10px;
-  border-top: 1px solid var(--line);
-  border-left: 3px solid transparent;
-  margin-left: -13px;
-  padding-left: 10px;
-}
-.dash-panel__item:first-child {
-  border-top: 0;
-}
-.dash-panel__item.is-bad {
-  border-left-color: var(--stop);
-}
-.dash-panel__item.is-warn {
-  border-left-color: var(--lamp);
-}
-.dash-panel__item.is-stale {
-  opacity: 0.7;
-}
-.dash-panel__main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  font-size: 14px;
-}
-.dash-panel__main strong {
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.dash-panel__main .dash-hint,
-.dash-panel__main .dash-problem {
-  margin-top: 1px;
-}
-.dash-live__show {
-  flex-shrink: 0;
-  min-height: 32px;
-  font-size: 13px;
+.gl-m--bounds .gl-m__tag {
+  left: 50%;
+  top: auto;
+  bottom: 0;
+  transform: translateX(-50%);
+  letter-spacing: 0.14em;
+  color: var(--label);
 }
 
-/* ---------------- the live overview ---------------- */
+/* The editor's draggable pins. */
+.gl-m--edit {
+  cursor: grab;
+}
+.gl-m--corner {
+  width: 18px;
+  height: 18px;
+}
+.gl-m--corner .gl-m__dot {
+  background: var(--lamp);
+  border: 2px solid var(--halo);
+}
+.gl-m--corner .gl-m__tag {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 700;
+  color: #111111;
+  text-shadow: none;
+}
+.gl-m--home {
+  width: 8px;
+  height: 8px;
+}
+.gl-m--home .gl-m__dot {
+  background: var(--halo);
+  border: 1.5px solid var(--gate);
+}
+
+/* ---------------- the overview ---------------- */
 
 .dash-live {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-height: calc(100dvh - 32px - 110px);
 }
-.dash-live__top {
+.dash-live__row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 20px;
-  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1 1 auto;
 }
-.dash-live__title {
-  flex: 1 1 220px;
+.dash-live__gap {
+  flex: 999 1 320px;
+  min-height: 120px;
+}
+.dash-live__side {
+  flex: 0 1 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 0;
 }
-.dash-live__title .dash-h1 {
-  font-size: 22px;
-}
-.dash-live__counts {
+.dash-status {
+  flex: 0 1 300px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  min-width: 0;
 }
-.dash-live__count {
-  min-width: 84px;
-  padding: 4px 10px;
-  border-radius: var(--radius);
-  background: var(--paper);
-  border-top: 3px solid var(--line-strong);
-}
-.dash-live__count.is-warn {
-  border-top-color: var(--lamp);
-}
-.dash-live__count dt {
-  font-size: 12px;
+.dash-kicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
   color: var(--slate);
-  font-weight: 600;
 }
-.dash-live__count dd {
+.dash-kicker .dash-mono {
+  letter-spacing: 0.1em;
+}
+.dash-figs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
   margin: 0;
-  font-size: 20px;
-  font-weight: 650;
-  color: var(--ink);
+}
+.dash-figs > div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+}
+.dash-figs dd {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 500;
   line-height: 1.2;
 }
-.dash-live__panels {
+.dash-figs dt {
+  font-size: 12px;
+  color: var(--slate);
+}
+.dash-rule {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--line);
+}
+.dash-warn-text {
+  color: var(--lamp-ink);
+}
+.dash-faint {
+  font-size: 10.5px;
+  color: var(--slate);
+  letter-spacing: 0.08em;
+}
+.dash-trust {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-trust__bar {
+  display: flex;
+  height: 6px;
+  gap: 2px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dash-trust__bar > span {
+  flex: 0 1 0;
+}
+.dash-trust__v {
+  background: var(--ink);
+}
+.dash-trust__p {
+  background: var(--slate);
+}
+.dash-trust__u {
+  background: var(--lamp);
+}
+.dash-trust__empty {
+  flex: 1 1 auto !important;
+  background: var(--line);
+}
+.dash-trust__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--slate);
+}
+.dash-gates {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.dash-live__after {
-  margin: 24px calc(-1 * var(--dash-pad)) -64px;
-  padding: 24px var(--dash-pad) 64px;
-  background: var(--paper);
+.dash-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.dash-gate.is-stale {
+  opacity: 0.6;
+}
+.dash-gate__top,
+.dash-gate__sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.dash-gate__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dash-gate__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dash-gate__status.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-gate__sub {
+  font-size: 12px;
+  color: var(--slate);
+}
+.dash-show {
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.dash-show:hover {
+  border-color: var(--line-strong);
+}
+.dash .dash-link-mono {
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: 0.12em;
+}
+.dash .dash-link-mono:hover {
+  text-decoration: underline;
+}
+.dash-places > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.dash-places > summary::after {
+  content: "+";
+}
+.dash-places[open] > summary::after {
+  content: "-";
+}
+
+.dash-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dash-dot--gate {
+  background: var(--gate);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.dash-dot--warn {
+  background: var(--lamp);
+}
+.dash-dot--guard {
+  background: var(--guard);
+}
+.dash-dot--alert {
+  background: var(--alert);
+}
+.dash-dot--muted {
+  background: var(--slate);
+}
+.dash-dot--entry {
+  border: 1.5px solid var(--ink);
+}
+.dash-dot--square {
+  border-radius: 2px;
+}
+
+.dash-log {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 8px;
+}
+.dash-log .dash-kicker {
+  padding-bottom: 12px;
+}
+.dash-log__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+.dash-log__state .dash-dot {
+  width: 6px;
+  height: 6px;
+}
+.dash-log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dash-log__row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
+}
+.dash-log__time {
+  font-size: 12px;
+  color: var(--slate);
+}
+.dash-log__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.dash-log__tag {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+.dash-log__tag.is-warn {
+  color: var(--lamp-ink);
+}
+.dash-log__tag.is-alert {
+  color: var(--stop-text);
+}
+.dash-log__tag.is-muted {
+  color: var(--slate);
+}
+.dash-log__text {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.dash-log__sub {
+  font-size: 12px;
+  color: var(--slate);
+}
+.dash-log__empty {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--slate);
+}
+.dash .dash-log__more {
+  display: block;
+  padding: 12px 0 8px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.dash-legend {
+  align-self: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 8px 14px;
+  list-style: none;
+  border-radius: 14px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--slate);
+}
+.dash-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-live__after {
+  margin: 24px -16px -16px;
+  padding: 24px max(16px, var(--dash-pad)) 72px;
+  background: var(--panel-solid);
+  border-top: 1px solid var(--line);
+  border-radius: 24px 24px 0 0;
+}
+.dash-live__after > .dash-stats,
+.dash-live__after > p,
+.dash-live__after > h2 {
+  max-width: 1240px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .dash-live__after-title {
   margin-bottom: 12px;
 }
 
-/* Phones and narrow windows: the map shows above, the panels scroll up over it. */
+/* Phones: the map shows above, the panels scroll up over it. */
 @media (max-width: 899px) {
-  .dash-live__panels {
-    margin-top: 34vh;
-  }
-}
-
-/* Wide screens: the top bar across, the panels in a column on the left, the map to the right. */
-@media (min-width: 900px) {
-  .dash-themed[data-map="live"] .dash-main,
-  .dash-themed[data-map="edit"] .dash-main {
-    max-width: none;
+  .dash-themed:is([data-map="live"], [data-map="edit"]) .dash-map,
+  .dash-themed:is([data-map="live"], [data-map="edit"]) .dash-map-labels {
+    bottom: auto;
+    height: 62vh;
   }
   .dash-live {
-    min-height: calc(100dvh - 32px - 24px);
+    padding-top: calc(62vh - 170px);
+    min-height: 0;
   }
-  .dash-live__panels {
-    width: min(380px, 42%);
-    max-height: calc(100dvh - 210px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-right: 2px;
+  .dash-live__row {
+    flex-direction: column;
+    align-items: stretch;
   }
-  .dash-live__top {
-    max-width: 1100px;
+  .dash-live__gap {
+    display: none;
+  }
+  .dash-status,
+  .dash-live__side {
+    flex: 1 1 auto;
+  }
+  .dash-live__row > .dash-status {
+    order: 2;
+  }
+  .dash-live__row > .dash-live__side {
+    order: 1;
+  }
+  .dash-legend {
+    order: -1;
+  }
+  .dash-map .maplibregl-ctrl-bottom-right {
+    bottom: 8px;
   }
 }
 
-/* The overview without a map: prompt the admin to draw one. */
+/* The overview before a boundary exists: prompt the admin to draw one. */
 .dash-prompt {
   display: flex;
   flex-wrap: wrap;
@@ -494,58 +827,305 @@
   flex: 1 1 320px;
 }
 
-/* ---------------- day and night control (in the side bar) ---------------- */
+/* ---------------- the map editor ---------------- */
 
-.dash-theme {
-  border: 0;
-  margin: 4px 0 12px;
-  padding: 0;
-  min-width: 0;
+.dash-editor {
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px - 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.dash-theme__legend {
+.dash-editor__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-editor .dash-panel__list {
+  list-style: none;
+  margin: 0;
   padding: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ice-soft);
-  margin-bottom: 4px;
+}
+.dash-editor .dash-panel__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.dash-editor .dash-panel__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+}
+.dash-actions--tight {
+  margin-top: 0;
+  gap: 6px;
 }
 .dash-seg {
   display: inline-flex;
-  border: 1px solid var(--ice-line);
-  border-radius: var(--radius);
-  overflow: hidden;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--btn-bg);
+  align-self: flex-start;
 }
-.dash-seg__opt {
-  position: relative;
+.dash-seg__btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--slate);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
 }
-.dash-seg__opt input {
-  position: absolute;
-  opacity: 0;
-  inset: 0;
-  margin: 0;
-  cursor: pointer;
+.dash-seg__btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--dash-surface);
 }
-.dash-seg__opt span {
-  display: block;
-  padding: 5px 12px;
-  font-size: 13px;
+.dash-crosshair {
+  position: fixed;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ink), var(--ink)) center / 2px 100% no-repeat,
+    linear-gradient(var(--ink), var(--ink)) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 2px var(--halo));
+  opacity: 0.8;
+}
+@media (max-width: 899px) {
+  .dash-crosshair {
+    top: 31vh;
+  }
+  .dash-editor {
+    width: 100%;
+    max-height: none;
+    margin-top: calc(62vh - 150px);
+  }
+}
+
+/* ---------------- shared components in the design's shapes ---------------- */
+
+.dash-h1 {
   font-weight: 600;
-  color: var(--ice-soft);
+  letter-spacing: -0.01em;
 }
-.dash-seg__opt + .dash-seg__opt span {
-  border-left: 1px solid var(--ice-line);
+.dash-h2,
+.dash-h3 {
+  font-weight: 600;
 }
-.dash-seg__opt input:checked + span {
-  background: var(--ice);
-  color: #081a33;
+.dash .dash-btn {
+  border-radius: 999px;
+  font-weight: 600;
 }
-.dash-seg__opt input:focus-visible + span {
-  outline: 2px solid var(--ice);
-  outline-offset: -4px;
+.dash .dash-btn--ghost {
+  background: var(--btn-bg);
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
-.dash-theme__note {
+.dash .dash-btn--ghost:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.dash :is(.dash-card, .dash-table-wrap, .dash-stat, .dash-zone, .dash-details, .dash-settings, .dash-filters, .dash-empty, .dash-rows, .dash-pairing, .dash-dialog) {
+  border-radius: var(--radius-card);
+}
+.dash .dash-details--inline {
+  border-radius: var(--radius);
+}
+.dash .dash-msg {
+  border-radius: var(--radius);
+}
+.dash .dash-msg--ok {
+  border-color: var(--ink);
+}
+.dash .dash-badge {
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dash .dash-badge--ok {
+  background: var(--pass-soft);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.dash .dash-badge--warn {
+  background: var(--lamp-soft);
+  color: var(--lamp-ink);
+}
+.dash .dash-badge--bad {
+  background: var(--stop-soft);
+  color: var(--stop-text);
+}
+.dash .dash-badge--info {
+  background: var(--ink);
+  color: var(--dash-surface);
+}
+.dash .dash-table thead th,
+.dash .dash-stat__label,
+.dash .dash-fig dt,
+.dash .dash-pairing__label,
+.dash .dash-preview__label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dash .dash-stat__value,
+.dash .dash-fig dd,
+.dash .dash-pairing__code,
+.dash .dash-plate,
+.dash .dash-number,
+.dash .dash-dir__number {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.dash .dash-stat {
+  border-top-width: 1px;
+}
+.dash .dash-stat--warn {
+  box-shadow: inset 0 3px 0 var(--lamp);
+}
+.dash .dash-tab {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dash .dash-tab[aria-current="page"] {
+  border-bottom-color: var(--ink);
+}
+.dash .dash-banner {
+  border-left: 0;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: 13px;
+}
+.dash-themed:is([data-map="still"], [data-map="none"]) .dash-banner {
+  background: var(--navy-soft);
+}
+.dash-signin__brand {
+  margin-bottom: 20px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.dash-figs dd.dash-figs__none {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  line-height: 39px;
+  color: var(--slate);
+}
+.dash-gate__sub > .dash-mono,
+.dash-gate__sub > .dash-show {
+  white-space: nowrap;
+}
+.dash-map-bounds {
+  position: absolute;
+  left: 50%;
+  top: 148px;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--label);
+  white-space: nowrap;
+  text-shadow:
+    0 0 3px var(--halo),
+    0 0 3px var(--halo);
+}
+@media (max-width: 899px) {
+  .dash-map-bounds {
+    top: auto;
+    bottom: 12px;
+  }
+}
+.dash-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-credit__logo {
+  height: 16px;
+  width: auto;
+}
+
+/* Wide screens: the panels scroll inside themselves so the legend stays at the bottom. */
+@media (min-width: 900px) {
+  .dash-live {
+    height: calc(100dvh - 32px - 16px - var(--strip-h, 112px));
+    min-height: 520px;
+  }
+  .dash-live__row {
+    min-height: 0;
+    align-items: stretch;
+  }
+  .dash-status,
+  .dash-live__side {
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    align-self: flex-start;
+  }
+  .dash-live__side {
+    scrollbar-width: thin;
+  }
+}
+@media (min-width: 900px) {
+  .dash .dash-nav__link {
+    padding: 6px 7px;
+    letter-spacing: 0.07em;
+  }
+  .dash-nav__list {
+    gap: 0 2px;
+  }
+}
+@media (max-width: 899px) {
+  .dash-map-bounds {
+    display: none;
+  }
+}
+
+/* Gate log: a voice clip's controls and audio player. */
+.dash-media {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   margin-top: 4px;
-  font-size: 12px;
-  color: var(--ice-soft);
+}
+.dash-media .dash-hint {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+.dash-audio {
+  height: 32px;
+  max-width: 240px;
+}
+.dash-number--pending .dash-number {
+  color: var(--slate);
+  text-decoration: line-through dotted;
 }

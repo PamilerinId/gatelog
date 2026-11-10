@@ -49,22 +49,44 @@ export function ringFeature(ring: LngLat[] | null) {
   };
 }
 
-/** Everything outside the estate, to shade it back. A world-sized ring with the estate as a hole. */
-export function maskFeature(ring: LngLat[] | null) {
-  if (!ring || ring.length < 3) return { type: "FeatureCollection" as const, features: [] };
-  const world: LngLat[] = [
-    [-179.9, -85],
-    [179.9, -85],
-    [179.9, 85],
-    [-179.9, 85],
-    [-179.9, -85],
+export const EMPTY = { type: "FeatureCollection" as const, features: [] as never[] };
+
+const STEPS = [0.0005, 0.001, 0.002, 0.0025, 0.005, 0.01, 0.02, 0.05];
+
+/** A round grid spacing that gives about `lines` lines across the box. */
+export function gridStep([w, s, e, n]: BBox, lines = 6) {
+  const span = Math.max(e - w, n - s) / lines;
+  return STEPS.find((x) => x >= span) ?? STEPS[STEPS.length - 1];
+}
+
+export function gridValues(min: number, max: number, step: number) {
+  const out: number[] = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-12; v += step) out.push(Math.round(v / step) * step);
+  return out;
+}
+
+/** The faint coordinate grid over the lock box. */
+export function gridFeature(box: BBox, step = gridStep(box)) {
+  const [w, s, e, n] = box;
+  const lines: LngLat[][] = [
+    ...gridValues(w, e, step).map((x): LngLat[] => [
+      [x, s],
+      [x, n],
+    ]),
+    ...gridValues(s, n, step).map((y): LngLat[] => [
+      [w, y],
+      [e, y],
+    ]),
   ];
   return {
     type: "FeatureCollection" as const,
-    features: [
-      { type: "Feature" as const, properties: {}, geometry: { type: "Polygon" as const, coordinates: [world, [...ring, ring[0]].reverse()] } },
-    ],
+    features: lines.map((c) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: c } })),
   };
 }
 
-export const EMPTY = { type: "FeatureCollection" as const, features: [] as never[] };
+export function fmtLat(v: number) {
+  return `${Math.abs(v).toFixed(4)}°${v >= 0 ? "N" : "S"}`;
+}
+export function fmtLng(v: number) {
+  return `${Math.abs(v).toFixed(4)}°${v >= 0 ? "E" : "W"}`;
+}

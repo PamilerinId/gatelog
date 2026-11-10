@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { load } from "@/app/(dashboard)/_lib/api";
-import { ENTRY_METHOD, EXIT_METHOD, TZ_OFFSET, addDays, fmtDateTime, todayLagos } from "@/app/(dashboard)/_lib/format";
+import { getMe, load } from "@/app/(dashboard)/_lib/api";
+import { ENTRY_METHOD, EXIT_METHOD, MEDIA_ROLES, TRUST, TZ_OFFSET, addDays, fmtDateTime, todayLagos } from "@/app/(dashboard)/_lib/format";
 import type { EntryMethod, Gate, GateEntry, UnmatchedExit } from "@/app/(dashboard)/_lib/types";
 import { ApiError, Badge, Empty, PageHead } from "@/app/(dashboard)/_components/ui";
+import { ClipControls, PhotoButton } from "@/app/(dashboard)/_components/EntryMedia";
 
 export const metadata: Metadata = { title: "Gate log" };
 
@@ -15,6 +16,7 @@ const TONE: Record<EntryMethod, "ok" | "info" | "plain" | "warn" | "bad"> = {
   code: "ok",
   phone_announced: "plain",
   callback_confirmed: "info",
+  pin_confirmed: "info",
   walk_in_admitted: "warn",
   refused: "bad",
 };
@@ -46,13 +48,17 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
     return `/v1/admin/entries?${q}`;
   };
 
-  const [gates, entries, walkIns, unmatched] = await Promise.all([
+  const [me, gates, entries, walkIns, unmatched] = await Promise.all([
+    getMe(),
     load<Gate[]>("/v1/admin/gates"),
     tab === "entries" ? load<GateEntry[]>(withMethod(method)) : Promise.resolve(null),
     // The API returns both kinds of decision, newest first, in one call.
     tab === "walkins" ? load<GateEntry[]>(withMethod("walk_in_admitted,refused")) : Promise.resolve(null),
     tab === "unmatched" ? load<UnmatchedExit[]>("/v1/admin/exits/unmatched") : Promise.resolve(null),
   ]);
+
+  // Voice clips and gate photos are personal data: the estate admin and the security head only.
+  const media = MEDIA_ROLES.includes(me.role);
 
   // Walk-in decisions: everyone let in or turned away by the guard or CSO on duty, newest first.
   const decisionsError = walkIns && !walkIns.ok ? walkIns.error : null;
@@ -150,18 +156,19 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                       <th scope="col">Visiting</th>
                       <th scope="col">Plate</th>
                       <th scope="col">How they got in</th>
+                      <th scope="col">Trust</th>
                       <th scope="col">Gate and guard</th>
                       <th scope="col">Left</th>
                     </tr>
                   </thead>
                   <tbody>
                     {entries.data.map((e) => (
-                      <tr key={e.id}>
+                      <tr key={e.id} className={e.disputed_at ? "dash-row--bad" : undefined}>
                         <td data-label="Arrived" className="tnum dash-nowrap">
                           {fmtDateTime(e.at)}
                         </td>
                         <td data-label="Guest">
-                          {e.guest_name}
+                          <Guest e={e} media={media} />
                           {e.note && <span className="dash-hint">{e.note}</span>}
                         </td>
                         <td data-label="Visiting">{e.address ?? <span className="dash-muted">Unknown</span>}</td>
@@ -178,6 +185,14 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                               {e.reason}
                             </span>
                           )}
+                          {e.decided_alone && (
+                            <span className="dash-hint">
+                              <Badge tone="warn">Decided alone</Badge>
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Trust">
+                          <Trust e={e} />
                         </td>
                         <td data-label="Gate and guard">
                           {e.gate ?? "Unknown gate"}
@@ -208,7 +223,7 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
       {tab === "walkins" && (
         <>
           <p className="dash-muted">
-            When a guest has no code and no resident can be reached, the guard or CSO on duty decides. Each decision is recorded with who made
+            When a guest has no code and no resident can be reached, the guard on duty asks the CSO, who decides. Each decision is recorded with who made
             it and the reason they gave. Gatelog never decides.
           </p>
           {decisionsError && <ApiError error={decisionsError} />}
@@ -234,17 +249,26 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
                   </thead>
                   <tbody>
                     {decisions.map((e) => (
-                      <tr key={e.id} className={e.method === "refused" ? "dash-row--bad" : undefined}>
+                      <tr key={e.id} className={e.method === "refused" || e.disputed_at ? "dash-row--bad" : undefined}>
                         <td data-label="When" className="tnum dash-nowrap">
                           {fmtDateTime(e.at)}
                         </td>
                         <td data-label="Guest">
-                          {e.guest_name}
+                          <Guest e={e} media={media} />
                           {e.plate && <span className="dash-hint dash-plate">{e.plate}</span>}
                         </td>
                         <td data-label="Visiting">{e.address ?? <span className="dash-muted">Unknown</span>}</td>
                         <td data-label="Decision">
-                          {e.method === "refused" ? <Badge tone="bad">Refused</Badge> : <Badge tone="warn">{ENTRY_METHOD.walk_in_admitted}</Badge>}
+                          <span className="dash-badges">
+                            {e.method === "refused" ? <Badge tone="bad">Refused</Badge> : <Badge tone="warn">{ENTRY_METHOD.walk_in_admitted}</Badge>}
+                            {e.decided_alone && <Badge tone="warn">Decided alone</Badge>}
+                            {e.disputed_at && <Badge tone="bad">Home said NO</Badge>}
+                          </span>
+                          {e.decided_alone && (
+                            <span className="dash-hint">
+                              The person who decided was also the one on the gate: no second person saw it.{e.method !== "refused" && " The home was texted."}
+                            </span>
+                          )}
                         </td>
                         <td data-label="Who decided">{e.decided_by ?? e.guard ?? <span className="dash-muted">Not recorded</span>}</td>
                         <td data-label="Reason given">{e.reason ?? e.note ?? <span className="dash-muted">None given</span>}</td>
@@ -292,6 +316,44 @@ export default async function GateLogPage({ searchParams }: { searchParams: Prom
           )}
         </>
       )}
+    </>
+  );
+}
+
+/** The guest's name, or the voice clip it was said into, with the gate's photos. */
+function Guest({ e, media }: { e: GateEntry; media: boolean }) {
+  const clip = e.name_clip_id;
+  const unnamed = !!clip && e.guest_name === "Voice clip";
+  return (
+    <>
+      {unnamed ? <span className="dash-muted">Name said into a voice clip</span> : e.guest_name}
+      {clip &&
+        (media ? (
+          <ClipControls entryId={e.id} clipId={clip} named={!unnamed} />
+        ) : unnamed ? (
+          <span className="dash-hint">The estate admin or the security head can play it and type the name in.</span>
+        ) : null)}
+      {media && (e.visitor_photo_id || e.plate_photo_id) && (
+        <span className="dash-row-actions">
+          {e.visitor_photo_id && <PhotoButton photoId={e.visitor_photo_id} label="Visitor photo" alt={`Photo of ${unnamed ? "the visitor" : e.guest_name} at the gate`} />}
+          {e.plate_photo_id && <PhotoButton photoId={e.plate_photo_id} label="Plate photo" alt={`Plate photo for ${unnamed ? "the visitor" : e.guest_name}`} />}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** How far the estate can trust the entry, who rang, and whether the home said it was not them. */
+function Trust({ e }: { e: GateEntry }) {
+  return (
+    <>
+      {e.trust ? <Badge tone={TRUST[e.trust].tone}>{TRUST[e.trust].label}</Badge> : <span className="dash-muted">Not let in</span>}
+      {e.disputed_at && (
+        <span className="dash-hint">
+          <Badge tone="bad">Home said NO</Badge> {fmtDateTime(e.disputed_at)}
+        </span>
+      )}
+      {e.caller && <span className="dash-hint tnum">Caller {e.caller}</span>}
     </>
   );
 }

@@ -4,9 +4,9 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Map as MapLibre } from "maplibre-gl";
-import type { BBox, EstateMapData, Live } from "@/app/(dashboard)/_lib/types";
+import type { EstateMapData, Live } from "@/app/(dashboard)/_lib/types";
 import { MapContext, type MapContextValue, type MapLib, type MapMode } from "./context";
-import { OSM_COPYRIGHT } from "./style";
+import { IMAGERY, imageryCredit } from "./provider";
 import { nextSwitch, readPref, themeAt, writePref, type Theme, type ThemePref } from "./theme";
 
 // MapLibre only ever runs in the browser, in its own chunk.
@@ -136,11 +136,13 @@ export function MapShell({
   // --- the map engine ---------------------------------------------------------------------------
   const [engine, setEngineState] = useState<{ map: MapLibre | null; lib: MapLib | null }>({ map: null, lib: null });
   const setEngine = useCallback((map: MapLibre | null, lib: MapLib | null) => setEngineState({ map, lib }), []);
-  const [tileBounds, setTileBounds] = useState<BBox | null>(null);
   const reduced = useRef(false);
   useEffect(() => {
     reduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }, []);
+
+  const [credit, setCredit] = useState<string | null>(null);
+  const [logoOk, setLogoOk] = useState(true);
 
   const flyTo = useCallback(
     (lng: number, lat: number) => {
@@ -172,13 +174,13 @@ export function MapShell({
       map: engine.map,
       lib: engine.lib,
       setEngine,
-      tileBounds,
-      setTileBounds,
+      credit,
+      setCredit,
       canSeePositions,
       admin,
       flyTo,
     }),
-    [mode, data, live, liveError, liveAt, theme, pref, setPref, engine, setEngine, tileBounds, canSeePositions, admin, flyTo],
+    [mode, data, live, liveError, liveAt, theme, pref, setPref, engine, setEngine, credit, canSeePositions, admin, flyTo],
   );
 
   return (
@@ -187,10 +189,23 @@ export function MapShell({
         {children}
         {mounted && <EstateMap />}
         {mode !== "none" && (
-          <p className="dash-osm">
-            <a href={OSM_COPYRIGHT} target="_blank" rel="noreferrer">
-              © OpenStreetMap contributors
-            </a>
+          <p className="dash-credit">
+            {IMAGERY.logo &&
+              (logoOk ? (
+                // Google requires its logo with its imagery. The files come from Google's brand
+                // resources (docs/map-tiles.md); the word stands in until they are added.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  className="dash-credit__logo"
+                  src={theme === "night" ? "/map/google_on_non_white.png" : "/map/google_on_white.png"}
+                  alt="Google"
+                  height={16}
+                  onError={() => setLogoOk(false)}
+                />
+              ) : (
+                <strong>Google</strong>
+              ))}
+            {imageryCredit(credit ?? undefined)}
           </p>
         )}
       </div>

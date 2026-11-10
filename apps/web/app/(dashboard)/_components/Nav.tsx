@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export type NavItem = { href: string; label: string };
 
-/** Left navigation on wide screens; a menu button on phones. */
-export function Nav({ items, estate }: { items: NavItem[]; estate: string }) {
+/** The dashboard's pages, in the header strip. A menu button on phones. */
+export function Nav({ items, footer }: { items: NavItem[]; footer?: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -18,27 +18,21 @@ export function Nav({ items, estate }: { items: NavItem[]; estate: string }) {
 
   return (
     <nav className="dash-nav" aria-label="Dashboard" data-open={open}>
-      <div className="dash-nav__bar">
-        <Link href="/dashboard" className="dash-brand">
-          <span className="dash-brand__mark" aria-hidden="true" />
-          <span>
-            <span className="dash-brand__name">Gatelog</span>
-            <span className="dash-brand__estate">{estate}</span>
-          </span>
-        </Link>
-        <button type="button" className="dash-nav__toggle" aria-expanded={open} aria-controls="dash-nav-list" onClick={() => setOpen((o) => !o)}>
-          {open ? "Close" : here ? `Menu: ${here.label}` : "Menu"}
-        </button>
+      <button type="button" className="dash-nav__toggle" aria-expanded={open} aria-controls="dash-nav-list" onClick={() => setOpen((o) => !o)}>
+        {open ? "CLOSE" : here ? `MENU · ${here.label.toUpperCase()}` : "MENU"}
+      </button>
+      <div className="dash-nav__panel" id="dash-nav-list">
+        <ul className="dash-nav__list">
+          {items.map((i) => (
+            <li key={i.href}>
+              <Link href={i.href} className="dash-nav__link" aria-current={current(i.href) ? "page" : undefined}>
+                {i.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {footer}
       </div>
-      <ul id="dash-nav-list" className="dash-nav__list">
-        {items.map((i) => (
-          <li key={i.href}>
-            <Link href={i.href} className="dash-nav__link" aria-current={current(i.href) ? "page" : undefined}>
-              {i.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
     </nav>
   );
 }

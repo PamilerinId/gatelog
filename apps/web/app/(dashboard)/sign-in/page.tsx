@@ -12,9 +12,12 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <main id="main" className="dash-center">
       <div className="dash-signin">
-        <Link href="/" className="dash-brand dash-brand--dark">
-          <span className="dash-brand__mark" aria-hidden="true" />
-          <span className="dash-brand__name">Gatelog</span>
+        <Link href="/" className="dash-strip__brand dash-signin__brand">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <circle cx="7" cy="7" r="2.2" fill="currentColor" />
+          </svg>
+          <span className="dash-strip__name">GATELOG</span>
         </Link>
         <div className="dash-card">
           <h1 className="dash-h1">Sign in to your estate</h1>

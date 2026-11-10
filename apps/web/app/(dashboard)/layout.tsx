@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+// Inter for the interface, JetBrains Mono for data. Bundled and served by the app, never fetched from Google.
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
 import "./dashboard.css";
 import "./map.css";
 

@@ -10,7 +10,15 @@ export type HomeNode = { id: string; label: string; address: string; residents: 
 export type StreetNode = { id: string; name: string; homes: HomeNode[] };
 export type ZoneNode = { id: string; name: string; streets: StreetNode[] };
 
-export type PhoneNumber = { id: string; last4: string; masked: string; is_primary: boolean; verified_at: string | null };
+export type PhoneNumber = {
+  id: string;
+  last4: string;
+  masked: string;
+  is_primary: boolean;
+  verified_at: string | null;
+  /** Offered at the gate, waiting for the home's YES. Not usable until then. */
+  pending?: boolean;
+};
 export type ContactPref = "whatsapp" | "sms" | "call";
 export type Relation = "landlord" | "occupant";
 export type Resident = {
@@ -83,7 +91,9 @@ export type DirectoryEntry = {
   active: boolean;
 };
 
-export type EntryMethod = "code" | "phone_announced" | "callback_confirmed" | "walk_in_admitted" | "refused";
+export type EntryMethod = "code" | "phone_announced" | "callback_confirmed" | "pin_confirmed" | "walk_in_admitted" | "refused";
+/** How well an admitted entry was verified. Null for refusals. */
+export type EntryTrust = "verified" | "pin_verified" | "unverified";
 export type ExitMethod = "code" | "list_tap" | "resident_confirmed" | "rollup_closed";
 export type GateEntry = {
   id: string;
@@ -101,6 +111,17 @@ export type GateEntry = {
   shift_id: string | null;
   exit_at: string | null;
   exit_method: ExitMethod | null;
+  trust: EntryTrust | null;
+  /** The number that rang the gate, masked ("0803•••1234"). */
+  caller: string | null;
+  /** The home replied NO to "Not you?". */
+  disputed_at: string | null;
+  /** The guard said the name: guest_name is "Voice clip" until someone types it in. */
+  name_clip_id: string | null;
+  visitor_photo_id?: string | null;
+  plate_photo_id?: string | null;
+  /** The CSO admitted the guest on their own decision while also working the gate. */
+  decided_alone?: boolean;
 };
 export type UnmatchedExit = { id: string; at: string; guest_name: string | null; method: ExitMethod; visit_id: string | null };
 
@@ -121,7 +142,15 @@ export type Summary = {
   };
   overstays_by_night: { date: string; open_at_rollup: number; closed_by_morning: number | null; missed: number | null }[];
   directory: { numbers: number; overdue_verification: number; reported_not_working: number };
+  trust?: {
+    admitted: TrustSplit;
+    phone_entries: TrustSplit;
+    phone_by_gate: ({ gate: string } & TrustSplit)[];
+    phone_by_guard: ({ guard: string } & TrustSplit)[];
+    disputes: { entry_id: string; guest_name: string; gate: string | null; at: string; disputed_at: string }[];
+  };
 };
+export type TrustSplit = Record<EntryTrust, number>;
 
 export type StaffMember = { id: string; email: string; name: string; role: Role; active: boolean; phone: string | null };
 
@@ -254,6 +283,10 @@ export type Live = {
   shuttles: LiveShuttle[] | null;
   rides_waiting: RideBrief[];
   counts: { inside: number; overdue: number; rides_open: number; on_duty: number };
+  /** Added by the dashboard's /dashboard/live route: today's entries (newest first) for the live
+   * log, and today's summary. Null when that part could not be loaded. */
+  log?: GateEntry[] | null;
+  today?: Summary | null;
 };
 
 // --- shuttle (apps/api/app/routers/shuttle_admin.py) ------------------------------------

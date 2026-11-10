@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMe, load } from "@/app/(dashboard)/_lib/api";
-import { CONTACT, RELATION } from "@/app/(dashboard)/_lib/format";
-import type { HomeDetail, Relation, Resident } from "@/app/(dashboard)/_lib/types";
+import { getEstate, getMe, load } from "@/app/(dashboard)/_lib/api";
+import { CONTACT, RELATION, fmtDate } from "@/app/(dashboard)/_lib/format";
+import type { HomeDetail, Relation, Resident, ResidentCard } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
 import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
 import { ApiError, Badge, Empty, PageHead, Section } from "@/app/(dashboard)/_components/ui";
-import { addNumber, createResident, createVehicle, deleteHome, deleteNumber, deleteVehicle, setLevyPayer, updateResident } from "../../../actions";
+import { addNumber, createResident, createVehicle, deleteHome, deleteNumber, deleteVehicle, revokeCard, setLevyPayer, updateResident } from "../../../actions";
+import { HouseCodeButton } from "./HouseCode";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -16,7 +17,9 @@ const MAX_NUMBERS = 3;
 export default async function HomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [me, r] = await Promise.all([getMe(), load<HomeDetail>(`/v1/admin/homes/${id}`)]);
+  const [me, r, estate] = await Promise.all([getMe(), load<HomeDetail>(`/v1/admin/homes/${id}`), getEstate()]);
+  const shuttle = estate.ok && estate.data.settings.shuttle_enabled;
+  const cards = shuttle ? await load<ResidentCard[]>(`/v1/admin/cards?home_id=${id}`) : null;
   const admin = me.role === "admin";
   // Who owes the levy is dues information: the Exco and the treasurer only (spec, dues privacy).
   const seesLevy = admin || me.role === "committee" || me.role === "treasurer";
@@ -33,13 +36,16 @@ export default async function HomePage({ params }: { params: Promise<{ id: strin
           <ApiError error={r.error} />
         </>
       ) : (
-        <HomeView home={r.data} admin={admin} seesLevy={seesLevy} />
+        <>
+          <HomeView home={r.data} admin={admin} seesLevy={seesLevy} shuttle={shuttle} />
+          {shuttle && <ShuttleSection admin={admin} cards={cards} />}
+        </>
       )}
     </>
   );
 }
 
-function HomeView({ home, admin, seesLevy }: { home: HomeDetail; admin: boolean; seesLevy: boolean }) {
+function HomeView({ home, admin, seesLevy, shuttle }: { home: HomeDetail; admin: boolean; seesLevy: boolean; shuttle: boolean }) {
   const used = home.residents.reduce((n, r) => n + r.numbers.length, 0);
   return (
     <>
@@ -65,6 +71,8 @@ function HomeView({ home, admin, seesLevy }: { home: HomeDetail; admin: boolean;
       </PageHead>
 
       {seesLevy && <LevyPayer home={home} admin={admin} />}
+
+      <HomePin home={home} admin={admin} shuttle={shuttle} />
 
       {home.residents.length === 0 && (
         <Empty title="Nobody registered here yet">{admin ? "Add the first resident below." : "An estate admin can add residents."}</Empty>
@@ -231,10 +239,19 @@ function ResidentCard({ r, admin, full }: { r: Resident; admin: boolean; full: b
       ) : (
         <ul className="dash-numbers">
           {r.numbers.map((n) => (
-            <li key={n.id}>
+            <li key={n.id} className={n.pending ? "dash-number--pending" : undefined}>
               <span className="tnum dash-number">{n.masked}</span>
-              {n.is_primary && <Badge>Main</Badge>}
-              {n.verified_at ? <Badge tone="ok">Confirmed</Badge> : <Badge>Not confirmed yet</Badge>}
+              {n.pending ? (
+                <>
+                  <Badge tone="warn">Waiting for the home to confirm</Badge>
+                  <span className="dash-hint">Offered at the gate. It works only after someone in the home replies YES.</span>
+                </>
+              ) : (
+                <>
+                  {n.is_primary && <Badge>Main</Badge>}
+                  {n.verified_at ? <Badge tone="ok">Confirmed</Badge> : <Badge>Not confirmed yet</Badge>}
+                </>
+              )}
               {admin && (
                 <ConfirmButton action={deleteNumber} hidden={{ id: n.id }} label="Remove" title={`Remove ${n.masked}?`} confirmLabel="Remove number">
                   <p>This number will no longer be able to announce guests or confirm callbacks for this home.</p>
@@ -283,5 +300,87 @@ function ResidentCard({ r, admin, full }: { r: Resident; admin: boolean; full: b
         </div>
       )}
     </article>
+  );
+}
+
+function ShuttleSection({
+  admin,
+  cards,
+}: {
+  admin: boolean;
+  cards: { ok: true; data: ResidentCard[] } | { ok: false; error: string } | null;
+}) {
+  return (
+    <Section title="Shuttle: estate cards" id="shuttle">
+      <p className="dash-muted dash-small">
+        Riders record who they carried with a resident&rsquo;s estate card or the home PIN. The CSO issues cards on a gate phone. A card only
+        identifies the resident; it cannot pay for anything.
+      </p>
+      {!cards ? null : !cards.ok ? (
+        <ApiError error={cards.error} />
+      ) : cards.data.length === 0 ? (
+        <p className="dash-muted dash-small">No estate cards issued for this home.</p>
+      ) : (
+        <div className="dash-table-wrap">
+          <table className="dash-table dash-table--stack">
+            <thead>
+              <tr>
+                <th scope="col">Resident</th>
+                <th scope="col">Card</th>
+                <th scope="col">Issued</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cards.data.map((c) => (
+                <tr key={c.id}>
+                  <td data-label="Resident">{c.resident ?? <span className="dash-muted">Unknown</span>}</td>
+                  <td data-label="Card" className="tnum">
+                    Ends {c.uid_last4}
+                  </td>
+                  <td data-label="Issued">
+                    <span className="tnum">{fmtDate(c.issued_at)}</span>
+                    {c.issued_by && <span className="dash-hint">By {c.issued_by}</span>}
+                  </td>
+                  <td data-label="Status">
+                    <span className="dash-row-actions">
+                      {c.revoked_at ? (
+                        <>
+                          <Badge tone="bad">Revoked</Badge>
+                          <span className="dash-hint">{fmtDate(c.revoked_at)}</span>
+                        </>
+                      ) : (
+                        <Badge tone="ok">Working</Badge>
+                      )}
+                      {admin && !c.revoked_at && (
+                        <ConfirmButton action={revokeCard} hidden={{ id: c.id }} label="Revoke" title={`Revoke the card ending ${c.uid_last4}?`} confirmLabel="Revoke card">
+                          <p>Use this when a card is lost or the resident has moved out.</p>
+                          <ul>
+                            <li>It stops identifying {c.resident ?? "the resident"} when each rider phone next syncs.</li>
+                            <li>A revoked card cannot be turned back on. The CSO can issue a new one.</li>
+                          </ul>
+                        </ConfirmButton>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function HomePin({ home, admin, shuttle }: { home: HomeDetail; admin: boolean; shuttle: boolean }) {
+  return (
+    <Section title="Home PIN" id="home-pin" aside={admin ? <HouseCodeButton homeId={home.id} address={home.address} /> : undefined}>
+      <p className="dash-muted dash-small">
+        A 4-digit PIN for the home, for the resident&rsquo;s printed card. A caller who rings the gate about a guest and gives it is let in as
+        PIN verified{shuttle ? ", and a shuttle rider can use it to record who rode" : ""}. Residents can also get it by sending HOME PIN from a
+        registered number. Gatelog never shows it again after it is made.
+      </p>
+    </Section>
   );
 }

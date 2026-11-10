@@ -33,7 +33,7 @@ function oneOf<T extends string>(fd: FormData, key: string, options: readonly T[
 }
 
 const RELATIONS = ["landlord", "occupant"] as const;
-const GUARD_ROLES = ["guard", "cso"] as const;
+const GUARD_ROLES = ["guard", "cso", "rider"] as const;
 
 async function call<T>(method: string, path: string, json?: unknown): Promise<ApiResult<T>> {
   const token = await getToken();
@@ -169,7 +169,7 @@ export async function createGuard(fd: FormData) {
     "POST",
     "/v1/admin/guards",
     { name: str(fd, "name"), role, consent_recorded: on(fd, "consent_recorded") },
-    role === "cso" ? "CSO added." : "Guard added.",
+    role === "cso" ? "CSO added." : role === "rider" ? "Rider added." : "Guard added.",
   );
 }
 export async function updateGuard(fd: FormData) {
@@ -277,4 +277,108 @@ export async function updateSettings(fd: FormData) {
     },
     "Settings saved.",
   );
+}
+
+// --- estate map ---------------------------------------------------------------------------
+
+function coord(fd: FormData, key: string, min: number, max: number) {
+  const v = Number(str(fd, key));
+  if (!str(fd, key) || !Number.isFinite(v) || v < min || v > max) throw new Error(`bad ${key}`);
+  return v;
+}
+
+/** A pin's position, or null to remove it ("clear" set). */
+function pin(fd: FormData) {
+  if (on(fd, "clear")) return { lat: null, lng: null };
+  return { lat: coord(fd, "lat", -90, 90), lng: coord(fd, "lng", -180, 180) };
+}
+
+export async function saveBoundary(fd: FormData) {
+  let ring: unknown;
+  try {
+    ring = JSON.parse(str(fd, "ring"));
+  } catch {
+    return { ok: false, error: "The outline could not be read. Draw it again." } satisfies ActionState;
+  }
+  const ok = Array.isArray(ring) && ring.every((p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === "number" && Number.isFinite(n)));
+  if (!ok) return { ok: false, error: "The outline could not be read. Draw it again." } satisfies ActionState;
+  return act("PUT", "/v1/admin/map/boundary", { ring }, "Boundary saved. The map is now locked to it.");
+}
+
+export async function pinGate(fd: FormData) {
+  const body = pin(fd);
+  return act("PUT", `/v1/admin/map/gates/${id(fd)}`, body, body.lat == null ? "Pin removed." : "Gate pinned.");
+}
+
+export async function pinHome(fd: FormData) {
+  const body = pin(fd);
+  return act("PUT", `/v1/admin/map/homes/${id(fd)}`, body, body.lat == null ? "Pin removed." : "Home pinned.");
+}
+
+const PLACE_KINDS = ["amenity", "pickup", "post"] as const;
+
+export async function createPlace(fd: FormData) {
+  return act(
+    "POST",
+    "/v1/admin/places",
+    { name: str(fd, "name"), kind: oneOf(fd, "kind", PLACE_KINDS, "amenity"), lat: coord(fd, "lat", -90, 90), lng: coord(fd, "lng", -180, 180) },
+    "Place added. Drag it to fine-tune where it sits.",
+  );
+}
+
+export async function updatePlace(fd: FormData) {
+  const body: Record<string, unknown> = {};
+  if (fd.has("name")) body.name = str(fd, "name");
+  if (fd.has("kind")) body.kind = oneOf(fd, "kind", PLACE_KINDS, "amenity");
+  if (fd.has("lat")) {
+    body.lat = coord(fd, "lat", -90, 90);
+    body.lng = coord(fd, "lng", -180, 180);
+  }
+  return act("PATCH", `/v1/admin/places/${id(fd)}`, body, "Place saved.");
+}
+
+export async function deletePlace(fd: FormData) {
+  return act("DELETE", `/v1/admin/places/${id(fd)}`, undefined, "Place deleted.");
+}
+
+// --- shuttle ------------------------------------------------------------------------------
+
+export async function createMotorcycle(fd: FormData) {
+  const plate = str(fd, "plate");
+  return act("POST", "/v1/admin/shuttles", { label: str(fd, "label"), plate: plate || null }, "Motorcycle added.");
+}
+
+export async function updateMotorcycle(fd: FormData) {
+  const plate = str(fd, "plate");
+  return act("PATCH", `/v1/admin/shuttles/${id(fd)}`, { label: str(fd, "label"), plate: plate || null }, "Motorcycle saved.");
+}
+
+export async function setMotorcycleActive(fd: FormData) {
+  const active = on(fd, "active");
+  return act("PATCH", `/v1/admin/shuttles/${id(fd)}`, { active }, active ? "Motorcycle back in service." : "Motorcycle retired.");
+}
+
+export async function revokeCard(fd: FormData) {
+  return act("POST", `/v1/admin/cards/${id(fd)}/revoke`, undefined, "Card revoked. It stops working when each rider phone next syncs.");
+}
+
+/** The code comes back once, in the action's result, and is never stored by the dashboard. */
+export async function newHouseCode(fd: FormData): Promise<ActionState> {
+  const r = await call<{ code: string }>("POST", `/v1/admin/homes/${id(fd)}/house-code`);
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: { code: r.data.code } };
+}
+
+export async function updateShuttleSettings(fd: FormData) {
+  const enabled = on(fd, "shuttle_enabled");
+  const body: Record<string, unknown> = { shuttle_enabled: enabled };
+  if (str(fd, "max_rides_per_home_per_day")) body.max_rides_per_home_per_day = Number(str(fd, "max_rides_per_home_per_day"));
+  return act("PATCH", "/v1/admin/estate/settings", body, enabled ? "Shuttle settings saved." : "The shuttle is off.");
+}
+
+// --- gate log: voice clips --------------------------------------------------------------------
+
+/** Types in the name the guard said into a voice clip (or corrects one). Audited by the API. */
+export async function nameEntry(fd: FormData) {
+  return act("PATCH", `/v1/admin/entries/${id(fd)}`, { guest_name: str(fd, "guest_name") }, "Name saved.");
 }

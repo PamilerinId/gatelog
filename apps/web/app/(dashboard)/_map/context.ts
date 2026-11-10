@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from "react";
 import type { Map as MapLibre } from "maplibre-gl";
-import type { BBox, EstateMapData, Live } from "@/app/(dashboard)/_lib/types";
+import type { EstateMapData, Live } from "@/app/(dashboard)/_lib/types";
 import type { Theme, ThemePref } from "./theme";
 
 /**
@@ -28,9 +28,9 @@ export type MapContextValue = {
   map: MapLibre | null;
   lib: MapLib | null;
   setEngine: (map: MapLibre | null, lib: MapLib | null) => void;
-  /** The area the tile extract covers, for drawing a boundary before one exists. */
-  tileBounds: BBox | null;
-  setTileBounds: (b: BBox | null) => void;
+  /** The imagery credit for what is on screen (Google's changes with the view). */
+  credit: string | null;
+  setCredit: (c: string | null) => void;
   canSeePositions: boolean;
   admin: boolean;
   /** Move the map to a point (used by "Show on map" in the panels). */
