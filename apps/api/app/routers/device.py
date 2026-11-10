@@ -35,7 +35,7 @@ from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .. import abuse, clips, clock, db, directory, messaging, numbers, push, shifts, shuttle, storage, trust, visits
+from .. import abuse, clips, clock, db, directory, messaging, numbers, photos, push, shifts, shuttle, storage, trust, visits
 from .. import stay as stay_mod
 from ..auth import DeviceAuth, current_device, new_device_token, sha256
 from ..estate_settings import EstateSettings
@@ -44,6 +44,7 @@ from ..models import (
     RIDE_OPEN_STATES,
     Callback,
     Device,
+    GatePhoto,
     NumberOffer,
     PinCheck,
     VoiceClip,
@@ -186,6 +187,7 @@ def build_state(s: Session, dev: DeviceAuth) -> dict:
         "estate": {
             "id": str(estate.id), "name": estate.name, "timezone": estate.timezone,
             "walk_in_policy": st.walk_in_policy, "key_version": estate.hmac_key_version,
+            "visitor_photos": st.visitor_photos,  # all | phone_entries | off
         },
         "device": {"id": str(dev.id), "gate_id": str(dev.gate_id)},
         "keys": keys,
@@ -320,6 +322,9 @@ class EntryIn(BaseModel):
     note: str | None = Field(default=None, max_length=280)
     caller_masked: str | None = Field(default=None, pattern=CALLER_MASK)  # the announcing call, if the phone saw it
     name_clip_id: UUID | None = None  # the guard said the name: the clip uploaded to /clips/{id}
+    visitor_photo_id: UUID | None = None  # uploaded to /photos/{id}?kind=visitor
+    plate_photo_id: UUID | None = None  # uploaded to /photos/{id}?kind=plate
+    photo_skipped: Literal["no_camera", "refused"] | None = None
     at: datetime
 
 
@@ -542,6 +547,7 @@ class _Sync:
             guard_id=e.guard_id, shift_id=e.shift_id, device_id=self.dev.id, gate_id=e.gate_id or self.dev.gate_id, method=e.method,
             plate=normalise_plate(e.plate), decided_by=e.decided_by, reason=(e.reason or "").strip() or None, note=e.note, at=self._at(e.at),
             trust=level, caller_masked=e.caller_masked, name_clip_id=e.name_clip_id,
+            visitor_photo_id=e.visitor_photo_id, plate_photo_id=e.plate_photo_id, photo_skipped=e.photo_skipped,
         )
         if self._insert(Entry, row):
             entry = self.s.get(Entry, e.id)
@@ -855,6 +861,24 @@ def positions(body: PositionsIn, dev: DeviceAuth = Depends(current_device)) -> d
     return {"stored": len(kept)}
 
 
+@router.put("/photos/{photo_id}", status_code=204)
+async def upload_photo(photo_id: UUID, request: Request, kind: Literal["visitor", "plate"] = "visitor",
+                       dev: DeviceAuth = Depends(current_device)) -> None:
+    """A photo of the visitor or of the plate, as a JPEG body, with its own id. Entries name it
+    (`visitor_photo_id`, `plate_photo_id`), before or after it arrives. Retrying is safe."""
+    data = await request.body()
+    if len(data) > photos.MAX_BYTES:
+        raise HTTPException(413, "photo larger than 400 KB; send a smaller JPEG")
+    if not shifts.is_jpeg(data):
+        raise HTTPException(415, "send a JPEG")
+    with db.session(dev.estate_id) as s:
+        if s.get(GatePhoto, photo_id) is not None:
+            return  # already stored
+        key = photos.key(dev.estate_id, photo_id)
+        storage.put_encrypted(key, data)
+        s.add(GatePhoto(id=photo_id, estate_id=dev.estate_id, device_id=dev.id, kind=kind, ref=key, size=len(data), uploaded_at=clock.now()))
+
+
 @router.put("/clips/{clip_id}", status_code=204)
 async def upload_clip(clip_id: UUID, request: Request, dev: DeviceAuth = Depends(current_device)) -> None:
     """A visitor's name, spoken. Sent with its own id; entries and visits name it in
@@ -936,7 +960,8 @@ def cso_overview(dev: DeviceAuth = Depends(current_device), x_shift_id: str | No
                 ],
                 "walk_ins_today": [
                     {"entry_id": str(e.id), "guest_name": e.guest_name, "address": homes.get(e.home_id), "gate": gates.get(e.gate_id),
-                     "decided_by": who(e.decided_by), "reason": e.reason, "at": _iso(e.at)}
+                     "decided_by": who(e.decided_by), "reason": e.reason, "at": _iso(e.at),
+                     "decided_alone": e.decided_by is not None and e.decided_by == e.guard_id}
                     for e in walk_ins
                 ],
                 "quiet_phones": [

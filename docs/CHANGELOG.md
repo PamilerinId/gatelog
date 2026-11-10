@@ -2,6 +2,14 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 10 November 2026: visitor and plate photos; the CSO on the gate
+
+- **Uploading photos:** `PUT /v1/device/photos/{id}?kind=visitor|plate` takes a JPEG under 400 KB, encrypted before storage and deleted after 30 days. Entries name their photos (`visitor_photo_id`, `plate_photo_id`) or record why there is none (`photo_skipped: no_camera | refused`).
+- **When to take one:** new estate setting `visitor_photos` (`all`, `phone_entries` by default, `off`), sent to the gate phone in `/state`.
+- **Viewing:** the admin and the CSO only, at `GET /v1/admin/photos/{id}`. Each view is audited.
+- **Decided alone:** a walk-in that the CSO decided while also being the one on the gate is flagged in the gate log, the CSO view and the Excel export. The spec now says the CSO is usually on the gate, so the CSO view is built gate-first.
+- Migration 0008. The isolation test covers the new table and route.
+
 ## 8 November 2026: voice clips for visitor names (API for step 3)
 
 - **Upload:** `PUT /v1/device/clips/{id}` takes a short audio clip of the visitor's name. It is encrypted before storage and deleted after 7 days.

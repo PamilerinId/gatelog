@@ -2,6 +2,8 @@
 
 from datetime import time
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -29,6 +31,10 @@ class EstateSettings(BaseModel):
     sms_overage_naira: float | None = Field(default=None, ge=0, le=1000)
     # Until the WhatsApp Business account is approved, residents who prefer WhatsApp get SMS.
     whatsapp_enabled: bool = False
+    # When the gate phone photographs the visitor: every entry, only entries not checked by a
+    # code (phone calls, PIN, walk-ins), or never. The guard can always skip (no camera, the
+    # visitor refuses); a skipped photo is recorded, not enforced.
+    visitor_photos: Literal["all", "phone_entries", "off"] = "phone_entries"
     # The estate shuttle. Off unless the estate runs one; then RIDE works and riders can sign in.
     shuttle_enabled: bool = False
     # Rides one home can book by message in a day; past it, the resident is asked to call the CSO.

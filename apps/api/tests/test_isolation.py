@@ -77,7 +77,8 @@ def fill(owner, e, tag: str, resident_phone: str, sender: str) -> dict:
         "exits": [{"id": str(uuid.uuid4()), "method": "list_tap", "entry_id": entry_1, "at": "2026-10-21T08:04:00Z", **who}],
     })
     ids["visit"], ids["entry"] = visits[f"late {tag.lower()}"]["id"], entry_2
-    ids["clip"] = str(uuid.uuid4())
+    ids["clip"], ids["photo"] = str(uuid.uuid4()), str(uuid.uuid4())
+    client.put(f"/v1/device/photos/{ids['photo']}?kind=visitor", headers=e.dev, content=JPEG)
     client.put(f"/v1/device/clips/{ids['clip']}", headers=e.dev | {"Content-Type": "audio/mp4"}, content=b"\x00" * 500)
     client.post("/v1/device/sync", headers=e.dev, json={
         "pin_checks": [{"id": str(uuid.uuid4()), "home_id": e.home_id, "ok": False, "at": "2026-10-21T08:04:30Z", **who}],
@@ -205,7 +206,7 @@ PARAM_IDS = {
     "card_id": "card", "device_id": "device", "entry_id": "directory", "gate_id": "gate", "guard_id": "guard", "home_id": "home",
     "batch_id": "batch", "number_id": "number", "place_id": "place", "resident_id": "resident", "ride_id": "ride",
     "shift_id": "shift", "shuttle_id": "shuttle", "staff_id": "staff", "street_id": "street", "vehicle_id": "vehicle", "zone_id": "zone",
-    "clip_id": "clip",
+    "clip_id": "clip", "photo_id": "photo",
 }
 # Where one parameter name means different things on different routes.
 PATH_PARAM_IDS = {"/v1/admin/entries/{entry_id}": {"entry_id": "entry"}}

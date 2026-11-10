@@ -440,6 +440,11 @@ class Entry(Base):
     # The guard said the visitor's name instead of typing it: the clip (see VoiceClip). The
     # admin can type the name in later; guest_name says "Voice clip" until then.
     name_clip_id: Mapped[uuid.UUID | None] = mapped_column()
+    # Photos taken at the gate (see GatePhoto): the visitor, and the plate it read.
+    visitor_photo_id: Mapped[uuid.UUID | None] = mapped_column()
+    plate_photo_id: Mapped[uuid.UUID | None] = mapped_column()
+    # Why there is no visitor photo when the estate asks for one: no_camera or refused.
+    photo_skipped: Mapped[str | None] = mapped_column(String(10))
     # The home replied NO to the "Not you?" message: who and when.
     disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     disputed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("residents.id", ondelete="SET NULL"))
@@ -718,6 +723,23 @@ class VoiceClip(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class GatePhoto(Base):
+    """A photo taken at the gate: the visitor, or the car's plate. Encrypted in storage like a
+    selfie, seen only by the admin and the CSO (each view audited), deleted after 30 days.
+    Entries point at it by id; it may arrive before or after them."""
+
+    __tablename__ = "gate_photos"
+    __table_args__ = (CheckConstraint("kind IN ('visitor', 'plate')", name="ck_gate_photos_kind"),)
+    id: Mapped[uuid.UUID] = pk()  # client-generated
+    estate_id: Mapped[uuid.UUID] = estate_fk()
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("devices.id"))
+    kind: Mapped[str] = mapped_column(String(8))
+    ref: Mapped[str | None] = mapped_column(String(200))  # storage key; null once deleted
+    size: Mapped[int] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 # --- Estate shuttle ----------------------------------------------------------------------
 
 
@@ -842,6 +864,6 @@ TENANT_TABLES = [
     for t in (
         Zone, Street, Home, Resident, PhoneNumber, Gate, Guard, Shift, Vehicle, Device, Visit, Callback, Entry, Exit,
         OverstayNudge, Rollup, RollupItem, DirectoryReport, Conversation, MessageLog, ImportBatch, AuditEvent,
-        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck, NumberOffer, VoiceClip,
+        Place, Shuttle, ResidentCard, Ride, RideEvent, Position, PinCheck, NumberOffer, VoiceClip, GatePhoto,
     )
 ]

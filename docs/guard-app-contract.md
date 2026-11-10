@@ -212,6 +212,24 @@ the guard can play it back at exit, then delete it. The admin or the CSO types t
 dashboard later; it reaches `/state` (the visit's `guest_name`) at the next pull. Clips are
 deleted on the server after 7 days.
 
+**Visitor and plate photos.** `estate.visitor_photos` in `/state` says when to photograph the
+visitor: `all` (every entry), `phone_entries` (default: every entry not checked by a code), or `off`.
+After "Let them in", open the camera and take one photo; never show it again. The guard can skip:
+send `photo_skipped: no_camera | refused`. The plate camera's photo is kept too. Each photo has
+its own UUID, named on the entry (`visitor_photo_id`, `plate_photo_id`), and is uploaded when there is
+data:
+
+```
+PUT /v1/device/photos/{photo_id}?kind=visitor|plate     body: JPEG under 400 KB
+-> 204 stored (or already stored)   -> 413 too large   -> 415 not a JPEG
+```
+
+Delete the local copy once uploaded. The server deletes photos after 30 days.
+
+**The CSO on the gate.** The CSO often works the gate as the guard in charge. When the CSO decides
+a walk-in on their own shift, `decided_by` equals `guard_id`. That is allowed; the server flags it
+as decided alone for the Exco. Do not ask the CSO to pick themselves from a list: preselect them.
+
 **A resident's new number.** When a resident rang the gate from a number not on file and then
 confirmed on the callback to their registered number, offer "Add this number for Mrs Adeyemi?"
 (Yes/No). Yes is a `number_offers` record: `{id, resident_id, number, guard_id, shift_id, at}`,

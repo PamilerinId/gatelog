@@ -35,6 +35,7 @@ from ..models import (
     Street,
     Visit,
     VoiceClip,
+    GatePhoto,
     Zone,
 )
 
@@ -130,6 +131,7 @@ class SettingsPatch(BaseModel):
     max_visits_per_home_per_day: int | None = Field(default=None, ge=5, le=500)
     whatsapp_enabled: bool | None = None
     shuttle_enabled: bool | None = None
+    visitor_photos: Literal["all", "phone_entries", "off"] | None = None
     max_rides_per_home_per_day: int | None = Field(default=None, ge=2, le=200)
 
 
@@ -625,6 +627,20 @@ def view_selfie(shift_id: UUID, staff: Staff = Depends(selfie_viewer)) -> Respon
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
+@router.get("/photos/{photo_id}")
+def view_photo(photo_id: UUID, staff: Staff = Depends(selfie_viewer)) -> Response:
+    """A visitor or plate photo from the gate. Admin and CSO only; every view is audited."""
+    with db.session(staff.estate_id) as s:
+        p = _get(s, GatePhoto, photo_id, "photo")
+        if not p.ref:
+            raise HTTPException(404, "this photo was deleted after 30 days")
+        data = storage.get_decrypted(p.ref)
+        if data is None:
+            raise HTTPException(404, "photo missing from storage")
+        audit.record(s, staff.estate_id, staff.actor, "view_photo", p)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 @router.get("/clips/{clip_id}")
 def play_clip(clip_id: UUID, staff: Staff = Depends(selfie_viewer)) -> Response:
     """A visitor's name as the guard said it. Admin and CSO only; every play is audited."""
@@ -864,6 +880,10 @@ def list_entries(
                 "gate": gates.get(e.gate_id), "guard": guards.get(e.guard_id), "note": e.note, "plate": e.plate,
                 "decided_by": guards.get(e.decided_by), "reason": e.reason, "shift_id": e.shift_id,
                 "trust": e.trust, "caller": e.caller_masked, "disputed_at": e.disputed_at, "name_clip_id": e.name_clip_id,
+                "visitor_photo_id": e.visitor_photo_id, "plate_photo_id": e.plate_photo_id, "photo_skipped": e.photo_skipped,
+                # The CSO admitted on their own decision while also being the one on the gate: the
+                # home's "Not you?" text was the only other pair of eyes.
+                "decided_alone": e.decided_by is not None and e.decided_by == e.guard_id,
                 "exit_at": exits[e.id].at if e.id in exits else None, "exit_method": exits[e.id].method if e.id in exits else None,
             }
             for e in rows

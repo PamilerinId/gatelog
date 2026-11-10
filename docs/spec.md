@@ -32,7 +32,7 @@ Residents never install an app: they use WhatsApp, SMS or a phone call. Only gua
 | Landlord | WhatsApp or SMS, dashboard view of their homes later | Add and remove occupants of their homes |
 | Designated contact (neighbour, relative, possibly abroad) | SMS and WhatsApp | Accept the role once, then receive SOS alerts and acknowledge |
 | Guard | Gate phone (Gatelog-leased Android, estate's own security SIM), guard view | Verify codes offline, log entries and exits, take and confirm phone announcements, receive and acknowledge SOS |
-| CSO (chief security officer, the estate's security head) | Any Gatelog gate phone, signed in with their own PIN and selfie, which opens the CSO view; plus SMS, voice escalation and the web dashboard | Everything a guard can do, plus what needs a decision: overstays, walk-in calls, the night list, shifts and handovers, SOS response. No separate CSO phone is needed |
+| CSO (chief security officer, the estate's security head) | Any Gatelog gate phone, signed in with their own PIN and selfie, which opens the CSO view; plus SMS, voice escalation and the web dashboard | Everything a guard can do, plus what needs a decision: overstays, walk-in calls, the night list, shifts and handovers, SOS response. No separate CSO phone is needed. The CSO is usually on the gate, often as the guard in charge of the shift or the guard on duty, not at a desk: the CSO view is built for the gate first |
 | Shuttle rider (estates with a shuttle) | Gatelog phone, rider view, signed in with their own PIN and selfie | Take rides from the queue, record who rode (card or house code), record flagged-down trips; position shown on the estate map during the shift |
 | Estate admin (facility manager, secretary) | Web dashboard | Manage the address register, residents, guards, contacts and the directory |
 | Treasurer | Web dashboard | Dues ledger, reminders, messaging usage |
@@ -95,7 +95,11 @@ Added after the first target estate's minutes (a three-area neighbourhood associ
 
 **Shared gates.** Where one gate serves two estates, the gate belongs to the estate whose guards staff it. Residents of the other estate are set up as a linked estate: their codes verify at that gate and their entries appear in both dashboards, each seeing only its own homes. Until both estates are on Gatelog, the guard logs the other estate's traffic as walk-ins with a callback.
 
-**Vehicles.** Every entry and exit has an optional plate number, typed by the guard (camera capture later). Residents can register their own vehicles so the guard sees a match. The committee can search the log by plate. Plates are stored as entered and never used for anything except the estate's own log.
+**Vehicles.** Every entry and exit has an optional plate number, read by the gate phone's camera (on-device text recognition, confirmed by the guard with Yes or No; no typing). Residents can register their own vehicles so the guard sees a match. The committee can search the log by plate. Plates are never used for anything except the estate's own log.
+
+**Visitor and plate capture** (added 10 November 2026). The gate phone photographs the visitor, and the plate it read, as evidence for the estate's own log.
+- **When:** estate setting. Default `phone_entries`: every entry not checked by a code (callback, home PIN, walk-in). It can be set to every entry, or off. The guard can always skip, and a skip records why (no camera, or the visitor refused); Gatelog never refuses entry over a photo.
+- **Privacy:** visitors are third parties, so the estate shows a notice at the gate. Photos are encrypted before storage and deleted after 30 days. Only the admin and the CSO can see them, and each view is audited. They are never sent to residents and never shown on the gate phone after capture.
 
 **Event passes (Phase 1.5).**
 
@@ -129,6 +133,8 @@ One app on every Gatelog gate phone. Who signs in decides what it shows.
 - If the camera fails, the shift still starts and is marked "no selfie", so a broken camera never stops a gate.
 
 **Guard view.** The keypad is the screen. Under it, two buttons: **No code** (find the home, call a registered number, then let the guest in now or expect them later; if nobody confirms, turn them away) and **Leaving** (tap the person, or re-enter their code). A small menu holds emergency numbers and End shift. Nothing else: no counts, no rota, no night list.
+
+**The CSO is usually on the gate.** Often the CSO is the guard in charge of the shift, or the guard on duty. The CSO view keeps the guard's three home buttons as its first screen, and everything else is a tap away, never a desk-style dashboard. When the CSO admits someone on their own decision while also being the one at the gate, nobody else saw it happen. The entry is flagged **decided alone**, the home's "Not you? Reply NO" text is the second pair of eyes, and the Exco sees how often it happens.
 
 **CSO view.** Everything in the guard view, plus:
 

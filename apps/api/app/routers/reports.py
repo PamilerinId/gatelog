@@ -134,7 +134,7 @@ def export(
         tz = visits.tz(estate)
         if view == "entries":
             ws.title = "Entries"
-            ws.append(["Date", "Time", "Guest", "Home", "Gate", "Method", "Trust", "Disputed", "Plate", "Decided by", "Reason", "Exit", "Exit method"])
+            ws.append(["Date", "Time", "Guest", "Home", "Gate", "Method", "Trust", "Disputed", "Plate", "Decided by", "Decided alone", "Reason", "Exit", "Exit method"])
             rows = s.scalars(select(Entry).where(Entry.at >= since, Entry.at < until).order_by(Entry.at)).all()
             homes = {h.id: h.address for h in s.scalars(select(Home))}
             gates = {g.id: g.name for g in s.scalars(select(Gate))}
@@ -144,7 +144,7 @@ def export(
                 at = e.at.astimezone(tz)
                 x = exits.get(e.id)
                 ws.append([at.date().isoformat(), at.strftime("%H:%M"), _text(e.guest_name), _text(homes.get(e.home_id)),
-                           _text(gates.get(e.gate_id)), e.method, e.trust or "", "yes" if e.disputed_at else "", e.plate, _text(people.get(e.decided_by)), _text(e.reason),
+                           _text(gates.get(e.gate_id)), e.method, e.trust or "", "yes" if e.disputed_at else "", e.plate, _text(people.get(e.decided_by)), "yes" if e.decided_by and e.decided_by == e.guard_id else "", _text(e.reason),
                            x.at.astimezone(tz).strftime("%Y-%m-%d %H:%M") if x else "", x.method if x else ""])
         else:
             data = summary(s, estate, since, until)
