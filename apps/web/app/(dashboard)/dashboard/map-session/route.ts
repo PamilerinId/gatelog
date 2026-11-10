@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiRequest } from "@/app/(dashboard)/_lib/api";
 import { SESSION_COOKIE } from "@/app/(dashboard)/_lib/session";
 
 // Google Map Tiles API: creates the satellite tile session on the server, with a key the browser
@@ -18,7 +19,12 @@ function fail(message: string, status: number) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!req.cookies.get(SESSION_COOKIE)?.value) return fail("Please sign in again.", 401);
+  // A cookie being present proves nothing: check the session with the API before spending
+  // Google quota, so only a real, active dashboard user can start or reuse a tile session.
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return fail("Please sign in again.", 401);
+  const me = await apiRequest<unknown>("/v1/auth/me", { token, timeoutMs: 5000 });
+  if (!me.ok) return fail("Please sign in again.", 401);
   if (process.env.NEXT_PUBLIC_MAP_PROVIDER !== "google") return fail("The map does not use Google imagery.", 404);
   const key = process.env.GOOGLE_MAPS_SERVER_KEY;
   if (!key) return fail("Satellite imagery is not set up on this server.", 503);
