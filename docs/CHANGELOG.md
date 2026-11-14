@@ -2,6 +2,13 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 14 November 2026: PIN resets by the security head; who is on shift, for every gate phone
+
+- **PIN reset:** `POST /v1/admin/guards/{id}/reset-pin` is now open to the security head as well as the estate admin. It is audited with who did it. On the dashboard, the security head's guard cards have a Change menu holding only Reset PIN.
+- **Who is on shift:** `/v1/device/state` carries `on_duty` (guard id, gate id, since) for every open shift. The gate phone uses it to offer the CSOs on shift first for a walk-in decision.
+- **"Not you?" texts:** a guest named only by a voice clip is now "A guest", and a dispute reply says "the guest", instead of quoting "Voice clip".
+- **Emergency numbers:** the Exco can tap "This number didn't work" again. It takes two reports from different people to mark a number.
+
 ## 10 November 2026: visitor and plate photos; the CSO on the gate
 
 - **Uploading photos:** `PUT /v1/device/photos/{id}?kind=visitor|plate` takes a JPEG under 400 KB, encrypted before storage and deleted after 30 days. Entries name their photos (`visitor_photo_id`, `plate_photo_id`) or record why there is none (`photo_skipped: no_camera | refused`).

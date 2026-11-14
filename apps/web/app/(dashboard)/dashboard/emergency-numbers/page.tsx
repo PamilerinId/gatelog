@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getMe, load } from "@/app/(dashboard)/_lib/api";
-import { canOpen, persona } from "@/app/(dashboard)/_lib/roles";
+import { canOpen } from "@/app/(dashboard)/_lib/roles";
 import { CATEGORY, fmtDate } from "@/app/(dashboard)/_lib/format";
 import type { DirectoryCategory, DirectoryEntry } from "@/app/(dashboard)/_lib/types";
 import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
@@ -18,8 +18,6 @@ export default async function EmergencyNumbersPage() {
   if (!canOpen(me.role, "emergency-numbers")) return <NotForRole title="Emergency numbers" />;
   const r = await load<DirectoryEntry[]>("/v1/admin/directory");
   const admin = me.role === "admin";
-  // The Exco reads; the office and the security head can say a number did not work.
-  const canReport = persona(me.role) !== "exco";
 
   return (
     <>
@@ -43,7 +41,7 @@ export default async function EmergencyNumbersPage() {
                 </h2>
                 <div className="dash-cards">
                   {rows.map((e) => (
-                    <NumberCard key={e.id} e={e} admin={admin} canReport={canReport} />
+                    <NumberCard key={e.id} e={e} admin={admin} />
                   ))}
                 </div>
               </section>
@@ -95,7 +93,9 @@ function DirectoryFields({ e }: { e?: DirectoryEntry }) {
   );
 }
 
-function NumberCard({ e, admin, canReport }: { e: DirectoryEntry; admin: boolean; canReport: boolean }) {
+// Everyone who can open this page (office, security head, Exco) can say a number did not work. A
+// second report from someone else is what marks it not working, so one person cannot take it down.
+function NumberCard({ e, admin }: { e: DirectoryEntry; admin: boolean }) {
   return (
     <article className="dash-card dash-dir">
       <div className="dash-dir__head">
@@ -143,9 +143,9 @@ function NumberCard({ e, admin, canReport }: { e: DirectoryEntry; admin: boolean
               <p>It will no longer be sent to residents and guards who ask for help.</p>
             </ConfirmButton>
         </More>
-      ) : canReport ? (
+      ) : (
         <ActionForm action={reportDirectoryEntry} hidden={{ id: e.id }} className="dash-inline-form" submit="This number didn't work" submitClass="dash-btn dash-btn--quiet dash-btn--sm" />
-      ) : null}
+      )}
     </article>
   );
 }

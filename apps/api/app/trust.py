@@ -17,8 +17,20 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import abuse, clock, messaging, visits
+from . import abuse, clips, clock, messaging, visits
 from .models import Entry, Estate, Gate, Home, PhoneNumber, PinCheck, Resident, StaffUser, Visit
+
+
+def _guest(e: Entry) -> str:
+    """The guest as a text can name them. A name the guard only said aloud is stored as the clip
+    placeholder until someone types it; quoting "(Voice clip)" to a resident means nothing."""
+    name = (e.guest_name or "").strip()
+    return "" if not name or name == clips.PLACEHOLDER else name
+
+
+def guest_label(e: Entry) -> str:
+    """For a sentence: the guest's name, or "the guest" when only a voice clip names them."""
+    return _guest(e) or "the guest"
 
 BY_METHOD = {
     "code": "verified",
@@ -59,7 +71,8 @@ def alert_unverified(s: Session, estate: Estate, e: Entry) -> int:
     gate = s.get(Gate, e.gate_id)
     when = visits.clock_24h(e.at.astimezone(visits.tz(estate)))
     after = f"a call from {e.caller_masked}" if e.caller_masked else "the CSO's decision"
-    body = f"A guest ({e.guest_name}) for {home.label} was admitted at {gate.name if gate else 'the gate'}, {when}, after {after}. Not you? Reply NO."
+    named = f" ({_guest(e)})" if _guest(e) else ""
+    body = f"A guest{named} for {home.label} was admitted at {gate.name if gate else 'the gate'}, {when}, after {after}. Not you? Reply NO."
     return _to_home(s, estate, e.home_id, "unverified_entry", body)
 
 
@@ -90,7 +103,8 @@ def dispute(s: Session, estate: Estate, resident: Resident) -> Entry | None:
     home = s.get(Home, e.home_id)
     gate = s.get(Gate, e.gate_id)
     when = visits.clock_24h(e.at.astimezone(visits.tz(estate)))
-    body = (f"{home.address} says the guest admitted at {gate.name if gate else 'the gate'}, {when} ({e.guest_name}) "
+    named = f" ({_guest(e)})" if _guest(e) else ""
+    body = (f"{home.address} says the guest admitted at {gate.name if gate else 'the gate'}, {when}{named} "
             "was NOT expected. Please check now.")
     heads = s.scalars(select(StaffUser.id).where(StaffUser.estate_id == estate.id, StaffUser.role == "security_head", StaffUser.active.is_(True))).all()
     for n in s.scalars(select(PhoneNumber).where(PhoneNumber.staff_id.in_(heads))):

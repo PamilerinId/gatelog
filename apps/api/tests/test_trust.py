@@ -48,6 +48,15 @@ def test_unverified_entry_tells_every_number_of_the_home(owner, outbox, at):
     assert safety["sms"] == 2 and safety["billed"] is False
 
 
+def test_a_name_only_said_aloud_is_not_quoted_to_the_home(owner, outbox, at):
+    e = make_estate(owner)
+    cso = add_person(e, "Mr Bello", role="cso")
+    entry(e, "walk_in_admitted", guest_name="Voice clip", decided_by=cso, reason="Says he is the plumber")
+    assert kinds(outbox, "unverified_entry")[0].body == P + "A guest for 14B was admitted at Main Gate, 08:30, after the CSO's decision. Not you? Reply NO."
+    sms_in(PHONE, "No")
+    assert bodies(outbox)[-1] == P + "Thank you. The estate's security has been told that the guest was not expected."
+
+
 def test_no_reply_disputes_the_entry_and_tells_the_security_head(owner, outbox, at):
     e = make_estate(owner)
     head = client.post("/v1/admin/staff", headers=e.admin, json={"email": "head@example.com", "name": "Sgt Okon", "role": "security_head", "phone": "08051112222"})

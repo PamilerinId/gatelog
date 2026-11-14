@@ -1,6 +1,6 @@
 # Gatelog Product Spec v1.0
 
-Oct 11, 2026 · @Pamilerin Idowu. Revised 4 November 2026: dues ledger in Phase 1, one Phase 1 row, the CSO role on the gate phone, guard PIN and selfie at shift start. Revised 8 November 2026: estate shuttle and the estate map; then the design handoff (`docs/gatelog-handoff/`) merged in: trust levels and one home PIN, satellite map (Google in production), voice clips for visitor names (uploaded encrypted, deleted after 7 days), the gate phone UX rules in `CLAUDE.md`.
+Oct 11, 2026 · @Pamilerin Idowu. Revised 4 November 2026: dues ledger in Phase 1, one Phase 1 row, the CSO role on the gate phone, guard PIN and selfie at shift start. Revised 8 November 2026: estate shuttle and the estate map; then the design handoff (`docs/gatelog-handoff/`) merged in: trust levels and one home PIN, satellite map (Google in production), voice clips for visitor names (uploaded encrypted, deleted after 7 days), the gate phone UX rules in `CLAUDE.md`. Revised 14 November 2026: the security head can reset a guard's PIN; the Exco can report a dead emergency number; "Not you?" texts never quote a voice-clip placeholder as the name.
 
 This file is the working copy the code is built from. Change it in the same commit as the code that changes the behaviour.
 
@@ -128,7 +128,7 @@ One app on every Gatelog gate phone. Who signs in decides what it shows.
 
 **Shift start: PIN and selfie.** Each guard and the CSO has a permanent personal PIN. Starting a shift takes the PIN plus a selfie, and every action until shift end is logged against that person and that shift. The PIN identifies; the selfie is an audit record of who was actually holding the phone, for the Exco to check after a dispute. It is not face recognition and is never compared automatically. Selfies are stored encrypted, viewable only by the estate admin and the CSO (each viewing is audited), and deleted after 30 days. Guards consent in writing at onboarding (it is personal data under the NDPA); the admin records that consent before the guard's first shift. Shift end is explicit (hand over to the next person, or end with nobody taking over), or automatic after 14 hours.
 
-- A guard sets their own PIN at their first shift; the admin never knows it. The admin can reset a forgotten PIN, and the next shift sets a new one.
+- A guard sets their own PIN at their first shift; nobody else ever knows it. The estate admin or the security head can reset a forgotten PIN (a guard locked out at 6am cannot wait for the office), and the next shift sets a new one. Each reset is audited with who did it.
 - The PIN works offline: the phone holds a salted, slow hash for each guard. Five wrong tries lock that guard out on that phone for 5 minutes.
 - If the camera fails, the shift still starts and is marked "no selfie", so a broken camera never stops a gate.
 
@@ -256,7 +256,7 @@ Residents who prefer to phone keep phoning; Gatelog makes the call auditable ins
 | PIN-verified | Caller from any number says the home's 4-digit home PIN | `pin_verified` |
 | Description only | The CSO or supervisor decides on the caller's description, as today (`walk_in_admitted`) | `unverified`, with who admitted and the reason given |
 
-- **The home is told about every description-only entry.** All registered numbers for the home get an SMS at once: "A guest for 14B was admitted at Atiba gate, 16:06, after a call from 0803•••1234. Not you? Reply NO." A NO alerts the CSO immediately and is logged against the entry. These messages are never billed against the SMS allowance.
+- **The home is told about every description-only entry.** All registered numbers for the home get an SMS at once: "A guest for 14B was admitted at Atiba gate, 16:06, after a call from 0803•••1234. Not you? Reply NO." A typed guest name goes in brackets after "A guest"; a name the guard only said aloud (a voice clip) is left out rather than quoted as "Voice clip". A NO alerts the CSO immediately and is logged against the entry. These messages are never billed against the SMS allowance.
 - **One home PIN** (decided 8 November 2026): the same 4 digits for phone calls to the gate and for the estate shuttle (it replaces the shuttle's separate house code). Set at onboarding, changeable by the household or the Exco, stored only as a slow hash, never shown to guards (the gate phone checks it offline), 3 wrong tries per call, and the home is alerted after any wrong try. Elderly residents get a printed card. Guard PINs stay 6 digits: a stolen gate phone holds their hashes, so the extra digits matter.
 - **New numbers.** When a resident calls from a new number and confirms on callback, the guard can offer to register it; an existing number for the home must reply YES first.
 - **Exco view.** Share of phone-announced entries at each trust level, by gate and by guard, plus every NO reply.
@@ -323,7 +323,7 @@ The dashboard sells renewals: it shows the committee what happened at the gate a
 
 - Address register on the four-level model; bulk import from the estate's existing list (CSV or Excel, staged for review before commit).
 - Residents per home, up to 3 registered numbers, contact preference (WhatsApp, SMS, call), callback-required flag, landlord or occupant, who owes the levy.
-- Guards and the CSO (with written consent recorded, PIN reset), shifts and handovers, gate devices; revoke a lost device remotely (rotates its key on next sync).
+- Guards and the CSO (with written consent recorded, PIN reset; the security head can also reset a PIN, and changes nothing else about guards), shifts and handovers, gate devices; revoke a lost device remotely (rotates its key on next sync).
 - SOS escalation ladder per estate: who is tier 2 and 3, timings.
 - Estate tier of the directory.
 

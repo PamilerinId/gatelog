@@ -407,7 +407,7 @@ class Turn:
         if e is None:
             self.reply("There is no unchecked guest for your home in the last day to answer NO to.", "dispute_noted")
             return
-        self.reply(f"Thank you. The estate's security has been told that {e.guest_name} was not expected.", "dispute_noted")
+        self.reply(f"Thank you. The estate's security has been told that {trust.guest_label(e)} was not expected.", "dispute_noted")
         self.result.changed = True
 
 

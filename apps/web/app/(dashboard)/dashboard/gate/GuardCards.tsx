@@ -5,8 +5,8 @@ import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
 import { More } from "@/app/(dashboard)/_components/ui";
 import { resetGuardPin, setGuardActive, updateGuard } from "../actions";
 
-// Guard cards: name, role, consent and PIN in plain words. The estate admin gets one "More" per
-// card for changes; everyone else reads.
+// Guard cards: name, role, consent and PIN in plain words. The estate admin gets one "Change" per
+// card for changes; the security head gets "Change" with only Reset PIN; everyone else reads.
 
 export function RoleField({ id, value = "guard", shuttle }: { id: string; value?: string; shuttle: boolean }) {
   return (
@@ -37,11 +37,23 @@ export function ConsentCheck({ checked }: { checked?: boolean }) {
   );
 }
 
-export function GuardCard({ g, admin, shuttle }: { g: Guard; admin: boolean; shuttle: boolean }) {
+/** `canResetPin`: the security head, who may reset a forgotten PIN (audited) but changes nothing else. */
+export function GuardCard({ g, admin, shuttle, canResetPin = false }: { g: Guard; admin: boolean; shuttle: boolean; canResetPin?: boolean }) {
+  const resetPin = g.pin_set && g.active && (admin || canResetPin) && (
+    <ConfirmButton action={resetGuardPin} hidden={{ id: g.id }} label="Reset PIN" title={`Reset ${g.name}'s PIN?`} confirmLabel="Reset PIN" danger={false}>
+      <p>Use this when they have forgotten their PIN.</p>
+      <ul>
+        <li>Their old PIN stops working once the gate phones next sync.</li>
+        <li>They choose a new PIN on the gate phone at their next shift. Nobody else ever sees it.</li>
+        <li>The reset is recorded with your name.</li>
+      </ul>
+    </ConfirmButton>
+  );
   return (
     <li className={`dash-personcard${g.active ? "" : " is-off"}`} id={`guard-${g.id}`}>
       <div className="dash-personcard__top">
         <span className="dash-personcard__name">{g.name}</span>
+        {!admin && resetPin && <More label="Change">{resetPin}</More>}
         {admin && (
           <More label="Change">
             <details className="dash-details dash-details--inline">
@@ -51,15 +63,7 @@ export function GuardCard({ g, admin, shuttle }: { g: Guard; admin: boolean; shu
                 <ConsentCheck checked={g.consent_at != null} />
               </ActionForm>
             </details>
-            {g.pin_set && (
-              <ConfirmButton action={resetGuardPin} hidden={{ id: g.id }} label="Reset PIN" title={`Reset ${g.name}'s PIN?`} confirmLabel="Reset PIN" danger={false}>
-                <p>Use this when they have forgotten their PIN.</p>
-                <ul>
-                  <li>Their old PIN stops working once the gate phones next sync.</li>
-                  <li>They choose a new PIN on the gate phone at their next shift. Nobody else ever sees it.</li>
-                </ul>
-              </ConfirmButton>
-            )}
+            {resetPin}
             {g.active ? (
               <ConfirmButton action={setGuardActive} hidden={{ id: g.id, active: "false" }} label="Stop their access" title={`Stop ${g.name}'s access?`} confirmLabel="Stop access">
                 <p>They will no longer appear on the gate phones. Their past entries and shifts stay in the log.</p>

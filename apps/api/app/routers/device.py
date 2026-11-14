@@ -227,6 +227,12 @@ def build_state(s: Session, dev: DeviceAuth) -> dict:
             for e in directory.entries(s)
         ],
         "shuttle": shuttle_state(s, now) if with_shuttle else None,
+        # Open shifts, so any gate phone can offer the people on shift first (a walk-in goes to
+        # a CSO who is actually on). Ids only: names and roles are already in "guards".
+        "on_duty": [
+            {"guard_id": str(sh.guard_id), "gate_id": str(sh.gate_id), "since": _iso(sh.started_at)}
+            for sh in s.scalars(select(Shift).where(Shift.ended_at.is_(None)).order_by(Shift.started_at))
+        ],
     }
 
 

@@ -7,8 +7,8 @@ import { GuardCard } from "../gate/GuardCards";
 
 export const metadata: Metadata = { title: "Guards" };
 
-/** The security head's view of the people on the gate. Changes, including a PIN reset, are made
- * by the estate admin (the API allows them to the admin only). */
+/** The security head's view of the people on the gate. They can reset a forgotten PIN (audited);
+ * other changes are made by the estate admin. */
 export default async function GuardsPage() {
   const me = await getMe();
   if (!canOpen(me.role, "guards")) return <NotForRole title="Guards" />;
@@ -20,7 +20,8 @@ export default async function GuardsPage() {
   return (
     <>
       <PageHead title="Guards">
-        Everyone who works a gate phone. To add someone, change a job, record consent or reset a forgotten PIN, ask the estate office.
+        Everyone who works a gate phone. You can reset a forgotten PIN with Change on their card. To add someone, change a job or record
+        consent, ask the estate office.
       </PageHead>
       {!guards.ok ? (
         <ApiError error={guards.error} />
@@ -29,7 +30,7 @@ export default async function GuardsPage() {
       ) : (
         <ul className="dash-personcards">
           {people.map((g) => (
-            <GuardCard key={g.id} g={g} admin={false} shuttle={shuttle} />
+            <GuardCard key={g.id} g={g} admin={false} shuttle={shuttle} canResetPin={me.role === "security_head"} />
           ))}
         </ul>
       )}

@@ -43,6 +43,7 @@ router = APIRouter(prefix="/v1/admin", tags=["estate admin"])
 admin = require("admin")
 reader = require("admin", "committee", "security_head", "treasurer", "org_admin", "org_viewer")
 selfie_viewer = require("admin", "security_head")
+pin_resetter = require("admin", "security_head")
 # Who owes the levy is dues information: the Exco and the treasurer see it, the security head does not.
 DUES_ROLES = ("admin", "committee", "treasurer")
 
@@ -574,8 +575,10 @@ def update_guard(guard_id: UUID, body: GuardPatch, bg: BackgroundTasks, staff: S
 
 
 @router.post("/guards/{guard_id}/reset-pin")
-def reset_pin(guard_id: UUID, bg: BackgroundTasks, staff: Staff = Depends(admin)) -> dict:
-    """A forgotten PIN. The guard sets a new one at their next shift; the admin never knows it."""
+def reset_pin(guard_id: UUID, bg: BackgroundTasks, staff: Staff = Depends(pin_resetter)) -> dict:
+    """A forgotten PIN. The guard sets a new one at their next shift; whoever reset it never
+    knows it. The security head can do this too: a guard locked out at 6am cannot wait for
+    the estate office. Audited either way."""
     with db.session(staff.estate_id) as s:
         g = _get(s, Guard, guard_id, "guard")
         before = audit.snapshot(g)

@@ -118,6 +118,32 @@ def test_pin_reset_wins_over_an_older_pin(owner, outbox, at):
     assert fresh["accepted"] == [musa]
 
 
+def test_security_head_can_reset_a_pin_and_it_is_audited(owner, outbox, at):
+    e = make_estate(owner)
+    musa = add_person(e, "Musa Ibrahim")
+    head = client.post("/v1/admin/staff", headers=e.admin, json={"email": "head@example.com", "name": "Sgt Okon", "role": "security_head"}).json()
+    committee = client.post("/v1/admin/staff", headers=e.admin, json={"email": "exco@example.com", "name": "Mr Ade", "role": "committee"}).json()
+    as_head = bearer(staff_token(uuid.UUID(head["id"]), uuid.UUID(e.id), "security_head"))
+    as_committee = bearer(staff_token(uuid.UUID(committee["id"]), uuid.UUID(e.id), "committee"))
+    assert client.post(f"/v1/admin/guards/{musa}/reset-pin", headers=as_head).json()["pin_set"] is False
+    # Only the estate admin and the security head: the Exco reads, it does not reset.
+    assert client.post(f"/v1/admin/guards/{musa}/reset-pin", headers=as_committee).status_code == 403
+    with owner.connect() as c:
+        actors = c.execute(text("SELECT actor FROM audit_events WHERE action = 'reset_pin'")).scalars().all()
+    assert len(actors) == 1 and head["id"] in actors[0]
+
+
+def test_state_lists_who_is_on_shift(owner, outbox, at):
+    e = make_estate(owner)
+    musa = add_person(e, "Musa Ibrahim")
+    bello = add_person(e, "Mr Bello", role="cso")
+    assert client.get("/v1/device/state", headers=e.dev).json()["on_duty"] == []
+    open_shift(e, bello, at="2026-10-21T06:00:00Z")
+    on = client.get("/v1/device/state", headers=e.dev).json()["on_duty"]
+    assert on == [{"guard_id": bello, "gate_id": e.gate_id, "since": "2026-10-21T06:00:00+00:00"}]
+    assert musa not in {x["guard_id"] for x in on}
+
+
 def test_a_shift_belongs_to_the_phone_that_opened_it(owner, outbox, at):
     e = make_estate(owner)
     musa = add_person(e, "Musa Ibrahim")
