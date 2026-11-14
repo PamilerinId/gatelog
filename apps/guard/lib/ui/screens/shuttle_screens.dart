@@ -18,6 +18,7 @@ import '../../data/shuttle.dart';
 import '../../sync/card_reader.dart';
 import '../app.dart';
 import '../kit.dart';
+import '../words.dart';
 
 Future<T?> _push<T>(BuildContext context, Widget screen) => Navigator.of(context).push<T>(MaterialPageRoute<T>(builder: (_) => screen));
 
@@ -123,7 +124,7 @@ class RideSummary extends StatelessWidget {
     final p = Palette.of(context);
     final t = c.time;
     final under = ride.state == RideState.pickedUp;
-    final wait = under ? 'Under way' : waitLabel(ride.wantedAt, t.now(), (d) => hhmm(t.of(d)));
+    final wait = under ? tr(M.underWay) : waitLabel(ride.wantedAt, t.now(), (d) => hhmm(t.of(d)));
     final who = ride.passenger ?? (ride.residentId == null ? null : c.snapshot?.resident(ride.residentId)?.name);
     return KitCard(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
@@ -148,8 +149,8 @@ class RideSummary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          StopLine(label: 'FROM', stop: ride.pickup),
-          StopLine(label: 'TO', stop: ride.dropoff),
+          StopLine(label: tr(M.fromTag), stop: ride.pickup),
+          StopLine(label: tr(M.toTag), stop: ride.dropoff),
           const SizedBox(height: 6),
           Wrap(
             spacing: 12,
@@ -182,22 +183,40 @@ IconData rideIcon(String kind) => switch (kind) {
 
 /// Read aloud: "Resident. From 14B to Main gate. Waiting 12 min."
 String rideWords(StateSnapshot? snap, Ride r, String wait) =>
-    '${rideKindLabel(r.kind)}. From ${stopShort(snap, r.pickup)} to ${stopShort(snap, r.dropoff)}. $wait.';
+    tr(M.rideSay, {'kind': rideKindLabel(r.kind), 'from': stopShort(snap, r.pickup), 'to': stopShort(snap, r.dropoff), 'wait': wait});
+
+/// Words for a ride's kind, as the rider reads them.
+String rideKindLabel(String kind) => switch (kind) {
+  RideKind.delivery => tr(M.parcel),
+  RideKind.guest => tr(M.guest),
+  _ => tr(M.resident),
+};
+
+/// "Waiting 12 min", "Waiting 1 h 5 min", "Wanted at 16:00" (with [hhmm] for future times).
+String waitLabel(DateTime? wantedAt, DateTime now, String Function(DateTime) hhmm) {
+  if (wantedAt == null) return tr(M.waiting);
+  final d = now.difference(wantedAt);
+  if (d.inMinutes < 0) return tr(M.wantedAt, {'time': hhmm(wantedAt)});
+  final m = d.inMinutes;
+  if (m < 1) return tr(M.justNow);
+  if (m < 60) return tr(M.waitingMin, {'m': m});
+  return tr(M.waitingHoursMin, {'h': m ~/ 60, 'm': m % 60});
+}
 
 // --- Yes or No --------------------------------------------------------------------------------------
 
-/// One question, Yes or No. Returns null on Back.
-Future<bool?> askYesNo(BuildContext context, {required String question, Widget? about, String? label, String? say, String yes = 'Yes', String no = 'No'}) =>
+/// One question, Yes or No (the words default to Yes and No). Returns null on Back.
+Future<bool?> askYesNo(BuildContext context, {required String question, Widget? about, String? label, String? say, String? yes, String? no}) =>
     _push<bool>(context, YesNoScreen(question: question, about: about, label: label, say: say, yes: yes, no: no));
 
 class YesNoScreen extends StatefulWidget {
-  const YesNoScreen({super.key, required this.question, this.about, this.label, this.say, this.yes = 'Yes', this.no = 'No'});
+  const YesNoScreen({super.key, required this.question, this.about, this.label, this.say, this.yes, this.no});
   final String question;
   final Widget? about;
   final String? label;
   final String? say;
-  final String yes;
-  final String no;
+  final String? yes;
+  final String? no;
   @override
   State<YesNoScreen> createState() => _YesNoScreenState();
 }
@@ -221,7 +240,7 @@ class _YesNoScreenState extends State<YesNoScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        YesNo(yes: widget.yes, no: widget.no, onYes: () => Navigator.pop(context, true), onNo: () => Navigator.pop(context, false)),
+        YesNo(yes: widget.yes ?? tr(M.yes), no: widget.no ?? tr(M.no), onYes: () => Navigator.pop(context, true), onNo: () => Navigator.pop(context, false)),
       ],
     ),
   );
@@ -255,16 +274,17 @@ Future<Picked<T>?> askEach<T>(
 Future<Picked<Resident>?> askResident(BuildContext context, Home home, {String Function(Resident)? question, String? label}) => askEach<Resident>(
   context,
   items: home.residents,
-  question: question ?? (r) => 'Is it ${r.name}?',
+  question: question ?? (r) => tr(M.isItName, {'name': r.name}),
   about: (r) => HouseCard(home: home, name: r.name),
   label: label,
 );
 
 // --- the register: street, then house number ----------------------------------------------------------
 
-/// Picks a home from the register without typing. Null on Back.
-Future<Home?> pickHome(BuildContext context, {String title = 'Which house?'}) async {
+/// Picks a home from the register without typing ([title] defaults to "Which house?"). Null on Back.
+Future<Home?> pickHome(BuildContext context, {String? title}) async {
   final c = GateScope.read(context);
+  final heading = title ?? tr(M.whichHouse);
   final homes = [...?c.snapshot?.homes]..sort(compareHomes);
   final streets = <String, List<Home>>{};
   for (final h in homes) {
@@ -274,9 +294,9 @@ Future<Home?> pickHome(BuildContext context, {String title = 'Which house?'}) as
   final one = streets.length == 1 ? streets.keys.single : null;
   while (true) {
     if (!context.mounted) return null;
-    final street = one ?? await _push<String>(context, _StreetPicker(title: title, streets: streets));
+    final street = one ?? await _push<String>(context, _StreetPicker(title: heading, streets: streets));
     if (street == null || !context.mounted) return null;
-    final home = await _push<Home>(context, _HousePicker(title: title, street: street, homes: streets[street]!));
+    final home = await _push<Home>(context, _HousePicker(title: heading, street: street, homes: streets[street]!));
     if (home != null) return home;
     if (one != null) return null;
   }
@@ -292,7 +312,7 @@ class _StreetPicker extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitTopBar(label: 'Street', sayAloud: '$title Tap the street.'),
+        KitTopBar(label: tr(M.street), sayAloud: tr(M.tapTheStreet, {'title': title})),
         Headline(title),
         Expanded(
           child: ListView(
@@ -324,7 +344,7 @@ class _HousePicker extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          KitTopBar(label: street, sayAloud: '$title Tap the house number.'),
+          KitTopBar(label: street, sayAloud: tr(M.tapTheHouseNumber, {'title': title})),
           Headline(title),
           Expanded(
             child: GridView.count(
@@ -363,9 +383,11 @@ class _HousePicker extends StatelessWidget {
 /// nowhere. The emulator has no NFC: debug builds only add a typed UID (kDebugMode is a
 /// compile-time constant, so a release build has no such field).
 class CardStep extends StatefulWidget {
-  const CardStep({super.key, required this.onUid, this.title = 'Tap their card'});
+  const CardStep({super.key, required this.onUid, this.title});
   final void Function(String uid) onUid;
-  final String title;
+
+  /// Defaults to "Tap their card".
+  final String? title;
   @override
   State<CardStep> createState() => _CardStepState();
 }
@@ -403,8 +425,8 @@ class _CardStepState extends State<CardStep> {
     final p = Palette.of(context);
     final st = _state;
     final note = switch (st) {
-      CardReaderState.off => 'Card reader is off. Turn on NFC in settings.',
-      CardReaderState.none => 'This phone cannot read cards.',
+      CardReaderState.off => tr(M.nfcOff),
+      CardReaderState.none => tr(M.noNfc),
       _ => null,
     };
     return Column(
@@ -412,7 +434,7 @@ class _CardStepState extends State<CardStep> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Icon(Icons.contactless_outlined, size: 96, color: st == CardReaderState.ready ? p.text : p.muted),
-        Headline(widget.title, center: true),
+        Headline(widget.title ?? tr(M.tapTheirCard), center: true),
         if (note != null)
           Text(
             note,
@@ -422,12 +444,12 @@ class _CardStepState extends State<CardStep> {
         if (st == CardReaderState.off)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Pill(label: 'Try again', icon: Icons.refresh, onTap: _listen),
+            child: Pill(label: tr(M.tryAgain), icon: Icons.refresh, onTap: _listen),
           ),
         if (kDebugMode) ...[
           const SizedBox(height: 12),
           Text(
-            'Test build only: type a card UID',
+            tr(M.debugTypeUid),
             textAlign: TextAlign.center,
             style: TextStyle(fontFamily: mono, fontSize: 12, color: p.warnText),
           ),
@@ -447,7 +469,7 @@ class _CardStepState extends State<CardStep> {
                   if (isPlausibleUid(_typed.text)) widget.onUid(normaliseUid(_typed.text));
                 },
                 child: Text(
-                  'Use',
+                  tr(M.useTyped),
                   style: TextStyle(fontFamily: inter, color: p.text),
                 ),
               ),
@@ -486,11 +508,10 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
     });
     final c = GateScope.read(context);
     final stop = widget.home.houseCodeHash == null || c.houseCodeLockedUntil(widget.home.id) != null;
-    speak(stop ? _stopWords : 'Ask for their home PIN.');
+    speak(stop ? _stopWords : tr(M.askTheirHomePin));
   }
 
-  String get _stopWords =>
-      widget.home.houseCodeHash == null ? 'This home has no PIN. Tap their card, or vouch for them.' : 'Ask them to call the gate. Or tap their card.';
+  String get _stopWords => tr(widget.home.houseCodeHash == null ? M.noPinVouch : M.callGateOrCard);
 
   @override
   void dispose() {
@@ -510,12 +531,12 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
     });
     switch (r) {
       case HouseCodeOk():
-        speak('PIN is correct.');
+        say(M.pinCorrect);
         Navigator.pop(context, 'ok');
       case HouseCodeWrong():
-        speak('Wrong PIN, try again.');
+        say(M.wrongPin);
       case HouseCodeLocked():
-        speak('Wrong PIN. $_stopWords');
+        say(M.wrongPinThen, {'then': _stopWords});
       case HouseCodeNone():
         speak(_stopWords);
     }
@@ -535,7 +556,7 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            KitTopBar(label: 'Home PIN', sayAloud: _stopWords),
+            KitTopBar(label: tr(M.homePin), sayAloud: _stopWords),
             HouseCard(home: widget.home),
             Expanded(
               child: Center(
@@ -545,17 +566,23 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
                       ResultMark(
                         icon: noPin ? Icons.pin_outlined : Icons.phone_in_talk_outlined,
                         warn: true,
-                        text: noPin ? 'This home has no PIN' : 'Ask them to call the gate',
+                        text: tr(noPin ? M.noPinForHome : M.askThemCallGate),
                       ),
-                      if (locked != null) Text('Three wrong tries', style: mutedStyle(context, 17)),
+                      if (locked != null) Text(tr(M.threeWrongTries), style: mutedStyle(context, 17)),
                     ],
                   ),
                 ),
               ),
             ),
-            BigTile(label: 'Tap their card', icon: Icons.contactless_outlined, primary: true, height: 104, onTap: () => Navigator.pop(context, 'card')),
+            BigTile(
+              label: tr(M.tapTheirCard),
+              icon: Icons.contactless_outlined,
+              primary: true,
+              height: 104,
+              onTap: () => Navigator.pop(context, 'card'),
+            ),
             const SizedBox(height: 10),
-            Pill(label: 'No card', onTap: () => Navigator.pop(context, 'none')),
+            Pill(label: tr(M.noCard), onTap: () => Navigator.pop(context, 'none')),
           ],
         ),
       );
@@ -568,21 +595,21 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const KitTopBar(label: 'Home PIN', sayAloud: 'Ask for their home PIN. Four numbers.'),
+              KitTopBar(label: tr(M.homePin), sayAloud: tr(M.askTheirHomePinSay)),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       HouseCard(home: widget.home),
-                      if (!compact) const Headline('Home PIN', size: 28, center: true) else const SizedBox(height: 14),
+                      if (!compact) Headline(tr(M.homePin), size: 28, center: true) else const SizedBox(height: 14),
                       Dots(filled: _digits.length, length: 4, error: _error),
                       SizedBox(
                         height: 30,
                         child: Center(
                           child: _error
                               ? Text(
-                                  'Wrong PIN, try again',
+                                  tr(M.wrongPin),
                                   style: TextStyle(fontFamily: inter, fontSize: 17, fontWeight: FontWeight.w700, color: p.noText),
                                 )
                               : (_busy ? LinearProgressIndicator(color: p.text, backgroundColor: p.surface) : null),
@@ -607,7 +634,7 @@ class _HouseCodeScreenState extends State<HouseCodeScreen> {
                 onGo: _check,
               ),
               const SizedBox(height: 10),
-              Pill(label: 'No PIN', onTap: () => Navigator.pop(context, 'none')),
+              Pill(label: tr(M.noPin), onTap: () => Navigator.pop(context, 'none')),
             ],
           );
         },
@@ -629,10 +656,12 @@ class WhoRode {
 /// (a gate booking) or the rider knows them. [home] null: a flagged-down ride, where the card or
 /// the house picked says which home.
 class WhoPanel extends StatefulWidget {
-  const WhoPanel({super.key, required this.onDone, this.home, this.fromGate = false, this.title = 'Tap their card'});
+  const WhoPanel({super.key, required this.onDone, this.home, this.fromGate = false, this.title});
   final Home? home;
   final bool fromGate;
-  final String title;
+
+  /// Defaults to "Tap their card".
+  final String? title;
   final void Function(WhoRode) onDone;
   @override
   State<WhoPanel> createState() => _WhoPanelState();
@@ -661,22 +690,22 @@ class _WhoPanelState extends State<WhoPanel> {
     final c = GateScope.read(context);
     final card = c.cardFor(uid);
     if (card == null) {
-      setState(() => _note = 'Card not known. Use the home PIN.');
-      speak('Card not known. Use the home PIN.');
+      setState(() => _note = tr(M.cardNotKnown));
+      say(M.cardNotKnown);
       return;
     }
     final home = c.snapshot?.home(card.homeId);
     final r = c.snapshot?.resident(card.residentId);
     if (home == null) return;
-    final name = r?.name ?? 'a resident';
+    final name = r?.name ?? tr(M.aResident);
     final other = widget.home != null && widget.home!.id != home.id;
     final yes = await _over(
       () => askYesNo(
         context,
-        label: 'Estate card',
-        question: 'Is this them?',
+        label: tr(M.estateCard),
+        question: tr(M.isThisThem),
         about: HouseCard(home: home, name: r?.name),
-        say: 'Card is $name, ${home.label.toUpperCase()}.${other ? ' Not the house on this ride.' : ''}',
+        say: [tr(M.cardIs, {'name': name, 'house': home.label.toUpperCase()}), if (other) tr(M.notThisRidesHouse)].join(' '),
       ),
     );
     if (yes == true && mounted) widget.onDone(WhoRode(home, RideConfirm.card(cardId: card.id, residentId: card.residentId)));
@@ -697,10 +726,10 @@ class _WhoPanelState extends State<WhoPanel> {
       if (widget.fromGate) {
         final sent = await askYesNo(
           context,
-          label: 'No PIN',
-          question: 'Did the guard send them?',
+          label: tr(M.noPin),
+          question: tr(M.guardSentThem),
           about: HouseCard(home: home),
-          say: 'Did the guard send them?',
+          say: tr(M.guardSentThem),
         );
         if (sent == null || !mounted) return null;
         if (sent) {
@@ -710,10 +739,10 @@ class _WhoPanelState extends State<WhoPanel> {
       }
       final known = await askYesNo(
         context,
-        label: 'No PIN',
-        question: 'Do you know them?',
+        label: tr(M.noPin),
+        question: tr(M.doYouKnowThem),
         about: HouseCard(home: home),
-        say: 'Do you know them?',
+        say: tr(M.doYouKnowThem),
       );
       if (known == true && mounted) widget.onDone(WhoRode(home, const RideConfirm.rider()));
       return null;
@@ -735,15 +764,16 @@ class _WhoPanelState extends State<WhoPanel> {
             style: TextStyle(fontFamily: inter, fontSize: 18, fontWeight: FontWeight.w700, color: p.noText),
           ),
         const SizedBox(height: 12),
-        Pill(label: 'No card', icon: Icons.dialpad, onTap: _noCard),
+        Pill(label: tr(M.noCard), icon: Icons.dialpad, onTap: _noCard),
       ],
     );
   }
 }
 
-/// Who rode (a parcel: who took it), on its own screen. Null on Back.
-Future<WhoRode?> askWhoRode(BuildContext context, {Home? home, bool fromGate = false, String title = 'Tap their card', String? label}) =>
-    _push<WhoRode>(context, _WhoScreen(home: home, fromGate: fromGate, title: title, label: label));
+/// Who rode (a parcel: who took it), on its own screen ([title] defaults to "Tap their card").
+/// Null on Back.
+Future<WhoRode?> askWhoRode(BuildContext context, {Home? home, bool fromGate = false, String? title, String? label}) =>
+    _push<WhoRode>(context, _WhoScreen(home: home, fromGate: fromGate, title: title ?? tr(M.tapTheirCard), label: label));
 
 class _WhoScreen extends StatelessWidget {
   const _WhoScreen({this.home, this.fromGate = false, required this.title, this.label});
@@ -757,7 +787,7 @@ class _WhoScreen extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        KitTopBar(label: label, sayAloud: '$title. Or tap No card.'),
+        KitTopBar(label: label, sayAloud: tr(M.cardOrNoCard, {'title': title})),
         if (home != null) HouseCard(home: home!),
         Expanded(
           child: Center(
@@ -778,7 +808,7 @@ class _WhoScreen extends StatelessWidget {
 /// True once booked.
 Future<bool> openShuttleToHome(BuildContext context, {Home? home, String? guestName}) async {
   final c = GateScope.read(context);
-  final h = home ?? await pickHome(context, title: 'Shuttle to which house?');
+  final h = home ?? await pickHome(context, title: tr(M.shuttleWhichHouse));
   if (h == null || !context.mounted) return false;
   var kind = RideKind.guest;
   if (guestName == null) {
@@ -786,11 +816,11 @@ Future<bool> openShuttleToHome(BuildContext context, {Home? home, String? guestN
     if (k == null || !context.mounted) return false;
     kind = k;
   }
-  final what = kind == RideKind.delivery ? 'parcel' : (guestName ?? 'guest');
+  final what = kind == RideKind.delivery ? tr(M.parcelWord) : (guestName ?? tr(M.guestWord));
   final yes = await askYesNo(
     context,
-    label: 'Shuttle',
-    question: 'Book the shuttle?',
+    label: tr(M.shuttle),
+    question: tr(M.bookTheShuttle),
     about: Column(
       children: [
         HouseCard(home: h),
@@ -802,7 +832,7 @@ Future<bool> openShuttleToHome(BuildContext context, {Home? home, String? guestN
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  kind == RideKind.delivery ? 'Parcel' : (guestName ?? 'Guest'),
+                  kind == RideKind.delivery ? tr(M.parcel) : (guestName ?? tr(M.guest)),
                   style: const TextStyle(fontFamily: inter, fontSize: 24, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -811,12 +841,12 @@ Future<bool> openShuttleToHome(BuildContext context, {Home? home, String? guestN
         ),
       ],
     ),
-    say: 'Shuttle to ${h.label.toUpperCase()} for a $what?',
+    say: tr(M.shuttleForSay, {'house': h.label.toUpperCase(), 'what': what}),
   );
   if (yes != true || !context.mounted) return false;
   await c.bookAtGate(home: h, kind: kind, passenger: guestName);
-  speak('Shuttle booked.');
-  c.showNotice('Shuttle booked: $what to ${h.displayAddress}');
+  say(M.shuttleBooked);
+  c.showNotice(tr(M.shuttleBookedNotice, {'what': what, 'address': h.displayAddress}));
   return true;
 }
 
@@ -831,7 +861,7 @@ class _ParcelOrGuestState extends State<_ParcelOrGuest> {
   @override
   void initState() {
     super.initState();
-    speak('Parcel or guest?');
+    say(M.parcelOrGuest);
   }
 
   @override
@@ -839,19 +869,24 @@ class _ParcelOrGuestState extends State<_ParcelOrGuest> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KitTopBar(label: 'Shuttle', sayAloud: 'Parcel or guest?'),
+        KitTopBar(label: tr(M.shuttle), sayAloud: tr(M.parcelOrGuest)),
         HouseCard(home: widget.home),
         const Spacer(),
-        const Headline('Parcel or guest?', center: true),
+        Headline(tr(M.parcelOrGuest), center: true),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: BigTile(label: 'Parcel', icon: Icons.inventory_2_outlined, height: 150, onTap: () => Navigator.pop(context, RideKind.delivery)),
+              child: BigTile(
+                label: tr(M.parcel),
+                icon: Icons.inventory_2_outlined,
+                height: 150,
+                onTap: () => Navigator.pop(context, RideKind.delivery),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: BigTile(label: 'Guest', icon: Icons.person_outline, height: 150, onTap: () => Navigator.pop(context, RideKind.guest)),
+              child: BigTile(label: tr(M.guest), icon: Icons.person_outline, height: 150, onTap: () => Navigator.pop(context, RideKind.guest)),
             ),
           ],
         ),
@@ -863,9 +898,9 @@ class _ParcelOrGuestState extends State<_ParcelOrGuest> {
 // --- the CSO's Shuttle tab ----------------------------------------------------------------------------
 
 String rideStateLine(Ride r, String wait) => switch (r.state) {
-  RideState.accepted => 'Taken by ${r.rider ?? 'a rider'}',
-  RideState.pickedUp => 'On the way with ${r.rider ?? 'a rider'}',
-  _ => 'No rider yet, $wait',
+  RideState.accepted => tr(M.takenBy, {'name': r.rider ?? tr(M.aRider)}),
+  RideState.pickedUp => tr(M.onTheWayWith, {'name': r.rider ?? tr(M.aRider)}),
+  _ => tr(M.noRiderYet, {'wait': wait}),
 };
 
 class ShuttleTab extends StatelessWidget {
@@ -899,12 +934,12 @@ class ShuttleTab extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: BigTile(label: 'Book a ride', icon: Icons.two_wheeler, primary: true, height: 112, onTap: () => openDispatch(context)),
+                  child: BigTile(label: tr(M.bookARide), icon: Icons.two_wheeler, primary: true, height: 112, onTap: () => openDispatch(context)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: BigTile(
-                    label: 'Issue a card',
+                    label: tr(M.issueACard),
                     icon: Icons.contactless_outlined,
                     height: 112,
                     onTap: () => _push<void>(context, const IssueCardScreen()),
@@ -913,7 +948,7 @@ class ShuttleTab extends StatelessWidget {
               ],
             ),
             if (waiting.isNotEmpty) ...[
-              section('Waiting over 10 min · ${waiting.length}', color: p.warnText),
+              section(tr(M.waitingOver10, {'n': waiting.length}), color: p.warnText),
               for (final w in waiting)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -928,7 +963,7 @@ class ShuttleTab extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${w.from ?? '?'} to ${w.to ?? '?'}',
+                                tr(M.fromTo, {'from': w.from ?? '?', 'to': w.to ?? '?'}),
                                 style: const TextStyle(fontFamily: inter, fontSize: 19, fontWeight: FontWeight.w700),
                               ),
                               Text(wait(w.wantedAt).toUpperCase(), style: monoStyle(context, 14, color: p.warnText)),
@@ -940,8 +975,8 @@ class ShuttleTab extends StatelessWidget {
                   ),
                 ),
             ],
-            section('Open rides · ${open.length}'),
-            if (open.isEmpty) Text('No open rides', style: mutedStyle(context, 18)),
+            section(tr(M.openRides, {'n': open.length})),
+            if (open.isEmpty) Text(tr(M.noOpenRides), style: mutedStyle(context, 18)),
             for (final r in open)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -955,7 +990,7 @@ class ShuttleTab extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${stopShort(c.snapshot, r.pickup)} to ${stopShort(c.snapshot, r.dropoff)}',
+                              tr(M.fromTo, {'from': stopShort(c.snapshot, r.pickup), 'to': stopShort(c.snapshot, r.dropoff)}),
                               style: const TextStyle(fontFamily: inter, fontSize: 19, fontWeight: FontWeight.w700),
                             ),
                             Text(
@@ -980,21 +1015,21 @@ class ShuttleTab extends StatelessWidget {
 
 Future<void> openDispatch(BuildContext context) async {
   final c = GateScope.read(context);
-  final home = await pickHome(context, title: 'Book a ride: which house?');
+  final home = await pickHome(context, title: tr(M.bookWhichHouse));
   if (home == null || !context.mounted) return;
-  final who = await askResident(context, home, question: (r) => 'Did ${r.name} ring?', label: 'Book a ride');
+  final who = await askResident(context, home, question: (r) => tr(M.didTheyRing, {'name': r.name}), label: tr(M.bookARide));
   if (who == null || !context.mounted) return;
   final resident = who.value;
   if (resident == null) {
-    speak('Book the ride for a resident of this house.');
+    say(M.bookForResident);
     return;
   }
   final stops = rideStops(c.snapshot!, home: home);
   final from = await askEach<RideStop>(
     context,
     items: stops,
-    label: 'Pick up',
-    question: (s) => s.kind == 'home' ? 'Pick up at home?' : 'Pick up at ${s.label}?',
+    label: tr(M.pickUp),
+    question: (s) => s.kind == 'home' ? tr(M.pickUpAtHome) : tr(M.pickUpAt, {'place': s.label}),
     about: (s) => s.kind == 'home' ? HouseCard(home: home, name: resident.name) : _PlaceCard(s.label),
   );
   if (from?.value == null || !context.mounted) return;
@@ -1004,28 +1039,28 @@ Future<void> openDispatch(BuildContext context) async {
       for (final s in stops)
         if (!s.sameAs(from!.value!)) s,
     ],
-    label: 'Going to',
-    question: (s) => s.kind == 'home' ? 'Going home?' : 'Going to ${s.label}?',
+    label: tr(M.goingToLabel),
+    question: (s) => s.kind == 'home' ? tr(M.goingHome) : tr(M.goingTo, {'place': s.label}),
     about: (s) => s.kind == 'home' ? HouseCard(home: home, name: resident.name) : _PlaceCard(s.label),
   );
   if (to?.value == null || !context.mounted) return;
   final when = await askEach<int>(
     context,
     items: const [0, 30, 60, 120],
-    label: 'When',
-    question: (m) => switch (m) {
-      0 => 'Now?',
-      30 => 'In 30 minutes?',
-      60 => 'In 1 hour?',
-      _ => 'In 2 hours?',
-    },
+    label: tr(M.whenLabel),
+    question: (m) => tr(switch (m) {
+      0 => M.nowQ,
+      30 => M.in30Minutes,
+      60 => M.in1Hour,
+      _ => M.in2Hours,
+    }),
   );
   if (when?.value == null || !context.mounted) return;
   final at = when!.value == 0 ? null : c.now().add(Duration(minutes: when.value!));
   final ok = await askYesNo(
     context,
-    label: 'Book a ride',
-    question: 'Book this ride?',
+    label: tr(M.bookARide),
+    question: tr(M.bookThisRide),
     about: KitCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1034,16 +1069,16 @@ Future<void> openDispatch(BuildContext context) async {
             resident.name,
             style: const TextStyle(fontFamily: inter, fontSize: 22, fontWeight: FontWeight.w700),
           ),
-          StopLine(label: 'FROM', stop: from!.value!),
-          StopLine(label: 'TO', stop: to!.value!),
-          Text(at == null ? 'NOW' : 'AT ${hhmm(c.time.of(at))}', style: monoStyle(context, 16)),
+          StopLine(label: tr(M.fromTag), stop: from!.value!),
+          StopLine(label: tr(M.toTag), stop: to!.value!),
+          Text(at == null ? tr(M.nowTag) : tr(M.atTime, {'time': hhmm(c.time.of(at))}), style: monoStyle(context, 16)),
         ],
       ),
     ),
   );
   if (ok != true || !context.mounted) return;
   await c.bookDispatch(home: home, residentId: resident.id, pickup: from.value!, dropoff: to.value!, wantedAt: at);
-  speak('Ride booked.');
+  say(M.rideBooked);
 }
 
 class _PlaceCard extends StatelessWidget {
@@ -1086,23 +1121,23 @@ class _IssueCardScreenState extends State<IssueCardScreen> {
   @override
   void initState() {
     super.initState();
-    speak('Tap the new card.');
+    say(M.tapNewCardSay);
   }
 
   Future<void> _uid(String uid) async {
     final c = GateScope.read(context);
     final known = c.cardFor(uid);
     if (known != null) {
-      final owner = c.snapshot?.resident(known.residentId)?.name ?? 'someone else';
+      final owner = c.snapshot?.resident(known.residentId)?.name ?? tr(M.someoneElse);
       setState(() => _taken = known);
-      speak('This card is already $owner\'s.');
+      say(M.cardAlreadyTheirs, {'name': owner});
       return;
     }
     setState(() => _busy = true);
     try {
-      final home = await pickHome(context, title: 'Whose card is it?');
+      final home = await pickHome(context, title: tr(M.whoseCard));
       if (home == null || !mounted) return;
-      final r = await askResident(context, home, question: (r) => 'Give the card to ${r.name}?', label: 'Issue a card');
+      final r = await askResident(context, home, question: (r) => tr(M.giveCardTo, {'name': r.name}), label: tr(M.issueACard));
       final resident = r?.value;
       if (resident == null || !mounted) return;
       final id = await c.issueCard(uid: uid, resident: resident);
@@ -1110,10 +1145,10 @@ class _IssueCardScreenState extends State<IssueCardScreen> {
       final item = await c.queuedItem(id);
       if (!mounted) return;
       final (IconData, String, bool) result = item != null && item.isRejected
-          ? (Icons.close, _sentence(item.reason ?? 'The server refused it'), true)
+          ? (Icons.close, _sentence(item.reason ?? tr(M.serverRefusedIt)), true)
           : item != null && item.isPending
-          ? (Icons.cloud_off, 'Saved. It is sent when there is network.', false)
-          : (Icons.check, 'Card issued to ${resident.name}, ${home.label.toUpperCase()}', false);
+          ? (Icons.cloud_off, tr(M.savedSentLater), false)
+          : (Icons.check, tr(M.cardIssuedTo, {'name': resident.name, 'house': home.label.toUpperCase()}), false);
       setState(() => _result = result);
       speak(result.$2);
     } finally {
@@ -1139,7 +1174,7 @@ class _IssueCardScreenState extends State<IssueCardScreen> {
       body = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ResultMark(icon: result.$1, text: result.$3 ? 'Card not issued' : (result.$1 == Icons.check ? 'Card issued' : 'Saved')),
+          ResultMark(icon: result.$1, text: tr(result.$3 ? M.cardNotIssued : (result.$1 == Icons.check ? M.cardIssued : M.saved))),
           const SizedBox(height: 8),
           Text(
             result.$2,
@@ -1149,14 +1184,14 @@ class _IssueCardScreenState extends State<IssueCardScreen> {
         ],
       );
     } else if (taken != null) {
-      final owner = c.snapshot?.resident(taken.residentId)?.name ?? 'someone else';
+      final owner = c.snapshot?.resident(taken.residentId)?.name ?? tr(M.someoneElse);
       body = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ResultMark(icon: Icons.close, bad: true, text: 'Card already issued'),
+          ResultMark(icon: Icons.close, bad: true, text: tr(M.cardAlreadyIssued)),
           const SizedBox(height: 8),
           Text(
-            "It is $owner's card. Revoke it in the dashboard first.",
+            tr(M.revokeFirst, {'name': owner}),
             textAlign: TextAlign.center,
             style: const TextStyle(fontFamily: inter, fontSize: 19),
           ),
@@ -1165,21 +1200,21 @@ class _IssueCardScreenState extends State<IssueCardScreen> {
     } else if (_busy) {
       body = const SizedBox(height: 160, child: Center(child: CircularProgressIndicator()));
     } else {
-      body = CardStep(key: ValueKey(_session), title: 'Tap the new card', onUid: _uid);
+      body = CardStep(key: ValueKey(_session), title: tr(M.tapNewCard), onUid: _uid);
     }
     return KitScaffold(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const KitTopBar(label: 'Issue a card', sayAloud: 'Tap the new card on the back of the phone.'),
+          KitTopBar(label: tr(M.issueACard), sayAloud: tr(M.tapNewCardBack)),
           Expanded(
             child: Center(child: SingleChildScrollView(child: body)),
           ),
           if (result != null || taken != null) ...[
-            BigTile(label: 'Done', icon: Icons.check, primary: true, height: 96, onTap: () => Navigator.pop(context)),
+            BigTile(label: tr(M.done), icon: Icons.check, primary: true, height: 96, onTap: () => Navigator.pop(context)),
             const SizedBox(height: 10),
             Pill(
-              label: 'Another card',
+              label: tr(M.anotherCard),
               onTap: () => setState(() {
                 _taken = null;
                 _result = null;

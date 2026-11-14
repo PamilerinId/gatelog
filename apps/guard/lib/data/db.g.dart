@@ -4968,6 +4968,471 @@ class PositionsTableCompanion extends UpdateCompanion<PositionRow> {
   }
 }
 
+class $MediaTableTable extends MediaTable
+    with TableInfo<$MediaTableTable, MediaRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MediaTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<Uint8List> bytes = GeneratedColumn<Uint8List>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentTypeMeta = const VerificationMeta(
+    'contentType',
+  );
+  @override
+  late final GeneratedColumn<String> contentType = GeneratedColumn<String>(
+    'content_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _refMeta = const VerificationMeta('ref');
+  @override
+  late final GeneratedColumn<String> ref = GeneratedColumn<String>(
+    'ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    bytes,
+    contentType,
+    ref,
+    createdAt,
+    attempts,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'media';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MediaRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bytesMeta);
+    }
+    if (data.containsKey('content_type')) {
+      context.handle(
+        _contentTypeMeta,
+        contentType.isAcceptableOrUnknown(
+          data['content_type']!,
+          _contentTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentTypeMeta);
+    }
+    if (data.containsKey('ref')) {
+      context.handle(
+        _refMeta,
+        ref.isAcceptableOrUnknown(data['ref']!, _refMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MediaRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MediaRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}bytes'],
+      )!,
+      contentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_type'],
+      )!,
+      ref: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ref'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+    );
+  }
+
+  @override
+  $MediaTableTable createAlias(String alias) {
+    return $MediaTableTable(attachedDatabase, alias);
+  }
+}
+
+class MediaRow extends DataClass implements Insertable<MediaRow> {
+  /// The clip's or photo's own UUID, named on the record (`name_clip_id`, `visitor_photo_id`...).
+  final String id;
+
+  /// clip | visitor | plate
+  final String kind;
+  final Uint8List bytes;
+  final String contentType;
+
+  /// The record that names it (an entry or a visit), so Leaving can play a clip back.
+  final String? ref;
+  final DateTime createdAt;
+  final int attempts;
+  const MediaRow({
+    required this.id,
+    required this.kind,
+    required this.bytes,
+    required this.contentType,
+    this.ref,
+    required this.createdAt,
+    required this.attempts,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['bytes'] = Variable<Uint8List>(bytes);
+    map['content_type'] = Variable<String>(contentType);
+    if (!nullToAbsent || ref != null) {
+      map['ref'] = Variable<String>(ref);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['attempts'] = Variable<int>(attempts);
+    return map;
+  }
+
+  MediaTableCompanion toCompanion(bool nullToAbsent) {
+    return MediaTableCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      bytes: Value(bytes),
+      contentType: Value(contentType),
+      ref: ref == null && nullToAbsent ? const Value.absent() : Value(ref),
+      createdAt: Value(createdAt),
+      attempts: Value(attempts),
+    );
+  }
+
+  factory MediaRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MediaRow(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      bytes: serializer.fromJson<Uint8List>(json['bytes']),
+      contentType: serializer.fromJson<String>(json['contentType']),
+      ref: serializer.fromJson<String?>(json['ref']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'bytes': serializer.toJson<Uint8List>(bytes),
+      'contentType': serializer.toJson<String>(contentType),
+      'ref': serializer.toJson<String?>(ref),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'attempts': serializer.toJson<int>(attempts),
+    };
+  }
+
+  MediaRow copyWith({
+    String? id,
+    String? kind,
+    Uint8List? bytes,
+    String? contentType,
+    Value<String?> ref = const Value.absent(),
+    DateTime? createdAt,
+    int? attempts,
+  }) => MediaRow(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    bytes: bytes ?? this.bytes,
+    contentType: contentType ?? this.contentType,
+    ref: ref.present ? ref.value : this.ref,
+    createdAt: createdAt ?? this.createdAt,
+    attempts: attempts ?? this.attempts,
+  );
+  MediaRow copyWithCompanion(MediaTableCompanion data) {
+    return MediaRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      contentType: data.contentType.present
+          ? data.contentType.value
+          : this.contentType,
+      ref: data.ref.present ? data.ref.value : this.ref,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MediaRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('bytes: $bytes, ')
+          ..write('contentType: $contentType, ')
+          ..write('ref: $ref, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('attempts: $attempts')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    $driftBlobEquality.hash(bytes),
+    contentType,
+    ref,
+    createdAt,
+    attempts,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MediaRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          $driftBlobEquality.equals(other.bytes, this.bytes) &&
+          other.contentType == this.contentType &&
+          other.ref == this.ref &&
+          other.createdAt == this.createdAt &&
+          other.attempts == this.attempts);
+}
+
+class MediaTableCompanion extends UpdateCompanion<MediaRow> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<Uint8List> bytes;
+  final Value<String> contentType;
+  final Value<String?> ref;
+  final Value<DateTime> createdAt;
+  final Value<int> attempts;
+  final Value<int> rowid;
+  const MediaTableCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.ref = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MediaTableCompanion.insert({
+    required String id,
+    required String kind,
+    required Uint8List bytes,
+    required String contentType,
+    this.ref = const Value.absent(),
+    required DateTime createdAt,
+    this.attempts = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       bytes = Value(bytes),
+       contentType = Value(contentType),
+       createdAt = Value(createdAt);
+  static Insertable<MediaRow> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<Uint8List>? bytes,
+    Expression<String>? contentType,
+    Expression<String>? ref,
+    Expression<DateTime>? createdAt,
+    Expression<int>? attempts,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (bytes != null) 'bytes': bytes,
+      if (contentType != null) 'content_type': contentType,
+      if (ref != null) 'ref': ref,
+      if (createdAt != null) 'created_at': createdAt,
+      if (attempts != null) 'attempts': attempts,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MediaTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? kind,
+    Value<Uint8List>? bytes,
+    Value<String>? contentType,
+    Value<String?>? ref,
+    Value<DateTime>? createdAt,
+    Value<int>? attempts,
+    Value<int>? rowid,
+  }) {
+    return MediaTableCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      bytes: bytes ?? this.bytes,
+      contentType: contentType ?? this.contentType,
+      ref: ref ?? this.ref,
+      createdAt: createdAt ?? this.createdAt,
+      attempts: attempts ?? this.attempts,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<Uint8List>(bytes.value);
+    }
+    if (contentType.present) {
+      map['content_type'] = Variable<String>(contentType.value);
+    }
+    if (ref.present) {
+      map['ref'] = Variable<String>(ref.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MediaTableCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('bytes: $bytes, ')
+          ..write('contentType: $contentType, ')
+          ..write('ref: $ref, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('attempts: $attempts, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$GateDatabase extends GeneratedDatabase {
   _$GateDatabase(QueryExecutor e) : super(e);
   $GateDatabaseManager get managers => $GateDatabaseManager(this);
@@ -4983,6 +5448,7 @@ abstract class _$GateDatabase extends GeneratedDatabase {
   late final $OutboxTableTable outboxTable = $OutboxTableTable(this);
   late final $SelfiesTableTable selfiesTable = $SelfiesTableTable(this);
   late final $PositionsTableTable positionsTable = $PositionsTableTable(this);
+  late final $MediaTableTable mediaTable = $MediaTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5000,6 +5466,7 @@ abstract class _$GateDatabase extends GeneratedDatabase {
     outboxTable,
     selfiesTable,
     positionsTable,
+    mediaTable,
   ];
 }
 
@@ -7626,6 +8093,243 @@ typedef $$PositionsTableTableProcessedTableManager =
       PositionRow,
       PrefetchHooks Function()
     >;
+typedef $$MediaTableTableCreateCompanionBuilder =
+    MediaTableCompanion Function({
+      required String id,
+      required String kind,
+      required Uint8List bytes,
+      required String contentType,
+      Value<String?> ref,
+      required DateTime createdAt,
+      Value<int> attempts,
+      Value<int> rowid,
+    });
+typedef $$MediaTableTableUpdateCompanionBuilder =
+    MediaTableCompanion Function({
+      Value<String> id,
+      Value<String> kind,
+      Value<Uint8List> bytes,
+      Value<String> contentType,
+      Value<String?> ref,
+      Value<DateTime> createdAt,
+      Value<int> attempts,
+      Value<int> rowid,
+    });
+
+class $$MediaTableTableFilterComposer
+    extends Composer<_$GateDatabase, $MediaTableTable> {
+  $$MediaTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ref => $composableBuilder(
+    column: $table.ref,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MediaTableTableOrderingComposer
+    extends Composer<_$GateDatabase, $MediaTableTable> {
+  $$MediaTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ref => $composableBuilder(
+    column: $table.ref,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MediaTableTableAnnotationComposer
+    extends Composer<_$GateDatabase, $MediaTableTable> {
+  $$MediaTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ref =>
+      $composableBuilder(column: $table.ref, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+}
+
+class $$MediaTableTableTableManager
+    extends
+        RootTableManager<
+          _$GateDatabase,
+          $MediaTableTable,
+          MediaRow,
+          $$MediaTableTableFilterComposer,
+          $$MediaTableTableOrderingComposer,
+          $$MediaTableTableAnnotationComposer,
+          $$MediaTableTableCreateCompanionBuilder,
+          $$MediaTableTableUpdateCompanionBuilder,
+          (
+            MediaRow,
+            BaseReferences<_$GateDatabase, $MediaTableTable, MediaRow>,
+          ),
+          MediaRow,
+          PrefetchHooks Function()
+        > {
+  $$MediaTableTableTableManager(_$GateDatabase db, $MediaTableTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MediaTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MediaTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MediaTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<Uint8List> bytes = const Value.absent(),
+                Value<String> contentType = const Value.absent(),
+                Value<String?> ref = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MediaTableCompanion(
+                id: id,
+                kind: kind,
+                bytes: bytes,
+                contentType: contentType,
+                ref: ref,
+                createdAt: createdAt,
+                attempts: attempts,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String kind,
+                required Uint8List bytes,
+                required String contentType,
+                Value<String?> ref = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> attempts = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MediaTableCompanion.insert(
+                id: id,
+                kind: kind,
+                bytes: bytes,
+                contentType: contentType,
+                ref: ref,
+                createdAt: createdAt,
+                attempts: attempts,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MediaTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$GateDatabase,
+      $MediaTableTable,
+      MediaRow,
+      $$MediaTableTableFilterComposer,
+      $$MediaTableTableOrderingComposer,
+      $$MediaTableTableAnnotationComposer,
+      $$MediaTableTableCreateCompanionBuilder,
+      $$MediaTableTableUpdateCompanionBuilder,
+      (MediaRow, BaseReferences<_$GateDatabase, $MediaTableTable, MediaRow>),
+      MediaRow,
+      PrefetchHooks Function()
+    >;
 
 class $GateDatabaseManager {
   final _$GateDatabase _db;
@@ -7654,4 +8358,6 @@ class $GateDatabaseManager {
       $$SelfiesTableTableTableManager(_db, _db.selfiesTable);
   $$PositionsTableTableTableManager get positionsTable =>
       $$PositionsTableTableTableManager(_db, _db.positionsTable);
+  $$MediaTableTableTableManager get mediaTable =>
+      $$MediaTableTableTableManager(_db, _db.mediaTable);
 }

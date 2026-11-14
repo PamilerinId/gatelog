@@ -26,7 +26,17 @@ class OverdueGuest {
 
 /// A refusal or a walk-in decision made today at any gate.
 class GateDecision {
-  const GateDecision({required this.entryId, required this.guestName, this.address, this.gate, this.who, this.reason, this.at});
+  const GateDecision({
+    required this.entryId,
+    required this.guestName,
+    this.address,
+    this.gate,
+    this.who,
+    this.reason,
+    this.at,
+    this.decidedAlone = false,
+    this.disputedAt,
+  });
   final String entryId;
   final String guestName;
   final String? address;
@@ -37,6 +47,12 @@ class GateDecision {
   final String? reason;
   final DateTime? at;
 
+  /// A walk-in the CSO decided on their own shift: nobody else saw it.
+  final bool decidedAlone;
+
+  /// The home replied NO to "Not you?".
+  final DateTime? disputedAt;
+
   factory GateDecision.fromJson(Map<String, dynamic> j, String whoKey) => GateDecision(
         entryId: j['entry_id'] as String,
         guestName: j['guest_name'] as String,
@@ -45,6 +61,8 @@ class GateDecision {
         who: j[whoKey] as String?,
         reason: j['reason'] as String?,
         at: _dt(j['at']),
+        decidedAlone: (j['decided_alone'] as bool?) ?? false,
+        disputedAt: _dt(j['disputed_at']),
       );
 }
 
@@ -148,6 +166,7 @@ class CsoOverview {
     required this.onDuty,
     required this.shiftsToday,
     this.ridesWaiting = const [],
+    this.disputedToday = const [],
   });
 
   final DateTime? serverTime;
@@ -162,6 +181,9 @@ class CsoOverview {
   /// Shuttle rides waiting over 10 minutes (empty when the estate runs no shuttle).
   final List<WaitingRide> ridesWaiting;
 
+  /// "Home said NO": an entry admitted on a description that the home says it did not expect.
+  final List<GateDecision> disputedToday;
+
   factory CsoOverview.fromJson(Map<String, dynamic> j) {
     final needs = (j['needs'] as Map<String, dynamic>?) ?? const {};
     return CsoOverview(
@@ -174,6 +196,7 @@ class CsoOverview {
       onDuty: [for (final o in _list(j['on_duty'])) OnDuty.fromJson(o)],
       shiftsToday: [for (final o in _list(j['shifts_today'])) ShiftToday.fromJson(o)],
       ridesWaiting: [for (final o in _list(needs['rides_waiting'])) WaitingRide.fromJson(o)],
+      disputedToday: [for (final o in _list(needs['disputed_today'])) GateDecision.fromJson(o, 'decided_by')],
     );
   }
 }

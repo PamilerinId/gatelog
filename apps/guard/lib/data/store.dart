@@ -25,9 +25,12 @@ abstract final class OutboxKind {
   /// A home PIN checked on this phone, right or wrong (never the PIN).
   static const pinCheck = 'pin_checks';
 
+  /// "Add this number for Mrs Adeyemi?": the only record that carries a full phone number.
+  static const numberOffer = 'number_offers';
+
   /// PINs and shifts first: the server wants a shift before the records made during it. A ride
   /// goes before its events (a flagged-down ride and its pickup travel in the same batch).
-  static const syncKinds = [pin, shift, card, ride, rideEvent, pinCheck, visit, callback, entry, exit, rollupCheck];
+  static const syncKinds = [pin, shift, card, ride, rideEvent, pinCheck, numberOffer, visit, callback, entry, exit, rollupCheck];
 }
 
 abstract final class OutboxStatus {
@@ -84,6 +87,37 @@ class OutboxItem {
         sentAt: r.sentAt,
         attempts: r.attempts,
       );
+}
+
+abstract final class MediaKind {
+  static const clip = 'clip';
+  static const visitor = 'visitor';
+  static const plate = 'plate';
+}
+
+/// A clip or a photo to keep until it uploads.
+class MediaItem {
+  const MediaItem({required this.id, required this.kind, required this.bytes, required this.contentType, required this.createdAt, this.ref});
+  final String id;
+  final String kind;
+  final List<int> bytes;
+  final String contentType;
+  final String? ref;
+  final DateTime createdAt;
+
+  /// Never print the bytes.
+  @override
+  String toString() => 'MediaItem($id, $kind, ${bytes.length} bytes)';
+}
+
+class MediaInfo {
+  const MediaInfo({required this.id, required this.kind, required this.contentType, required this.createdAt, this.ref, this.attempts = 0});
+  final String id;
+  final String kind;
+  final String contentType;
+  final String? ref;
+  final DateTime createdAt;
+  final int attempts;
 }
 
 /// Local persistence: the last state snapshot, small meta values, and the outbox.
@@ -196,6 +230,7 @@ class GateStore {
         await setMeta('device', jsonEncode({'id': s.deviceId, 'gate_id': s.deviceGateId}));
         await setMeta('rollup', s.rollup == null ? null : jsonEncode(s.rollup!.toJson()));
         await setMeta('shuttle', s.shuttle == null ? null : jsonEncode(s.shuttle!.toJson()));
+        await setMeta('on_duty', jsonEncode([for (final d in s.onDuty) d.toJson()]));
       });
 
   Future<StateSnapshot?> loadSnapshot() async {
@@ -205,6 +240,14 @@ class GateStore {
     final device = jsonDecode(deviceRaw) as Map<String, dynamic>;
     final rollupRaw = await meta('rollup');
     final shuttleRaw = await meta('shuttle');
+    // A list of open shifts. Anything else (nothing yet, or the map an older build kept here) is none.
+    final onDutyRaw = await meta('on_duty');
+    var onDuty = const <DutyShift>[];
+    try {
+      if (onDutyRaw != null) onDuty = DutyShift.listFromJson(jsonDecode(onDutyRaw));
+    } on FormatException {
+      onDuty = const [];
+    }
 
     final numbers = await db.select(db.numbersTable).get();
     final numbersByResident = <String, List<PhoneNumber>>{};
@@ -281,6 +324,7 @@ class GateStore {
           ),
       ],
       shuttle: shuttleRaw == null ? null : ShuttleState.fromJson(jsonDecode(shuttleRaw) as Map<String, dynamic>),
+      onDuty: onDuty,
     );
   }
 
@@ -367,6 +411,55 @@ class GateStore {
       );
 
   Future<void> deleteSelfie(String shiftId) => (db.delete(db.selfiesTable)..where((t) => t.shiftId.equals(shiftId))).go();
+
+  // --- voice clips and gate photos --------------------------------------------------------
+
+  Future<void> saveMedia(MediaItem m) => db.into(db.mediaTable).insertOnConflictUpdate(
+        MediaRow(id: m.id, kind: m.kind, bytes: Uint8List.fromList(m.bytes), contentType: m.contentType, ref: m.ref, createdAt: m.createdAt, attempts: 0),
+      );
+
+  /// What waits to upload, oldest first, without the bytes (read one at a time).
+  Future<List<MediaInfo>> mediaWaiting() async {
+    final t = db.mediaTable;
+    final q = db.selectOnly(t)
+      ..addColumns([t.id, t.kind, t.contentType, t.ref, t.createdAt, t.attempts])
+      ..orderBy([OrderingTerm(expression: t.createdAt)]);
+    return [
+      for (final r in await q.get())
+        MediaInfo(
+          id: r.read(t.id)!,
+          kind: r.read(t.kind)!,
+          contentType: r.read(t.contentType)!,
+          ref: r.read(t.ref),
+          createdAt: r.read(t.createdAt)!,
+          attempts: r.read(t.attempts) ?? 0,
+        ),
+    ];
+  }
+
+  Future<Uint8List?> mediaBytes(String id) async => (await (db.select(db.mediaTable)..where((t) => t.id.equals(id))).getSingleOrNull())?.bytes;
+
+  /// The voice clip still on the phone for a record (an entry or a visit), if any.
+  /// Record id -> the id of its voice clip, for clips still on the phone.
+  Future<Map<String, String>> clipRefs() async => {
+        for (final m in await mediaWaiting())
+          if (m.kind == MediaKind.clip && m.ref != null) m.ref!: m.id,
+      };
+
+  /// Deletes what a record named, if it has not uploaded yet (Undo).
+  Future<void> deleteMediaFor(String ref) => (db.delete(db.mediaTable)..where((t) => t.ref.equals(ref))).go();
+
+  Future<void> bumpMediaAttempts(String id) => db.customUpdate(
+        'UPDATE media SET attempts = attempts + 1 WHERE id = ?',
+        variables: [Variable.withString(id)],
+        updates: {db.mediaTable},
+      );
+
+  Future<void> deleteMedia(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (db.delete(db.mediaTable)..where((t) => t.id.isIn(list))).go();
+  }
 
   // --- rider positions --------------------------------------------------------------------
 

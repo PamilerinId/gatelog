@@ -10,7 +10,8 @@ Prints JSON: {"pairing_code", "code", "admin_token", ...}. Musa Ibrahim (guard),
 Kunle Rider (shuttle rider) all have consent recorded and no PIN yet. The estate runs the shuttle:
 motorcycle S1, the Clubhouse as a place, the boundary drawn around them; 14B has a registered vehicle, KJA456XY. `code` is the six-digit code of a guest
 announced by SMS just now, computed server side, so the app's offline check is compared
-against the API's own derivation. Uses the dev key store and a separate database
+against the API's own derivation. `house_code` is 14B's home PIN: the test checks it offline
+for a PIN-confirmed entry (and the shuttle flag-down). Visitor photos are on for phone entries. Uses the dev key store and a separate database
 (gatelog_guard_it); never point it at anything real.
 """
 
@@ -83,7 +84,10 @@ def seed(base: str) -> None:
     cso = httpx.post(f"{base}/v1/admin/guards", json={"name": "Mr Bello", "role": "cso", "consent_recorded": True}, headers=admin).json()
     httpx.post(f"{base}/v1/admin/homes/{home['id']}/vehicles", json={"plate": "kja 456 xy", "description": "Black Corolla"}, headers=admin).raise_for_status()
     # The estate shuttle: turned on, one motorcycle, a rider, a place inside a drawn boundary.
-    httpx.patch(f"{base}/v1/admin/estate/settings", json={"shuttle_enabled": True}, headers=admin).raise_for_status()
+    # The gate photographs visitors on phone entries (the default, set here so the check does
+    # not depend on it): the integration test sends visitor and plate photos and a skipped one.
+    httpx.patch(f"{base}/v1/admin/estate/settings", json={"shuttle_enabled": True, "visitor_photos": "phone_entries"},
+                headers=admin).raise_for_status()
     httpx.put(f"{base}/v1/admin/map/boundary", json={"ring": [[3.380, 6.600], [3.400, 6.600], [3.400, 6.620], [3.380, 6.620]]}, headers=admin).raise_for_status()
     httpx.put(f"{base}/v1/admin/map/gates/{gate_id}", json={"lat": 6.6005, "lng": 3.39}, headers=admin).raise_for_status()
     bike = httpx.post(f"{base}/v1/admin/shuttles", json={"label": "S1", "plate": "lnd 1 ev"}, headers=admin)

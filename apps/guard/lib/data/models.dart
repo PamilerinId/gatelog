@@ -11,7 +11,14 @@ import 'shuttle.dart';
 DateTime? _dt(Object? v) => v == null ? null : DateTime.parse(v as String);
 
 class Estate {
-  const Estate({required this.id, required this.name, required this.timezone, required this.walkInPolicy, required this.keyVersion});
+  const Estate({
+    required this.id,
+    required this.name,
+    required this.timezone,
+    required this.walkInPolicy,
+    required this.keyVersion,
+    this.visitorPhotos = VisitorPhotos.phoneEntries,
+  });
 
   final String id;
   final String name;
@@ -19,15 +26,33 @@ class Estate {
   final String walkInPolicy;
   final int keyVersion;
 
+  /// When the gate photographs the visitor after "Let them in": all | phone_entries | off.
+  final String visitorPhotos;
+
+  /// Whether an entry by [method] gets a visitor photo under the estate's rule.
+  bool photoFor(String method) => switch (visitorPhotos) {
+        VisitorPhotos.all => true,
+        VisitorPhotos.off => false,
+        _ => method != 'code',
+      };
+
   factory Estate.fromJson(Map<String, dynamic> j) => Estate(
         id: j['id'] as String,
         name: j['name'] as String,
         timezone: (j['timezone'] as String?) ?? 'Africa/Lagos',
         walkInPolicy: (j['walk_in_policy'] as String?) ?? '',
         keyVersion: (j['key_version'] as num?)?.toInt() ?? 1,
+        visitorPhotos: (j['visitor_photos'] as String?) ?? VisitorPhotos.phoneEntries,
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'timezone': timezone, 'walk_in_policy': walkInPolicy, 'key_version': keyVersion};
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'timezone': timezone, 'walk_in_policy': walkInPolicy, 'key_version': keyVersion, 'visitor_photos': visitorPhotos};
+}
+
+abstract final class VisitorPhotos {
+  static const all = 'all';
+  static const phoneEntries = 'phone_entries';
+  static const off = 'off';
 }
 
 class Gate {
@@ -337,6 +362,27 @@ class DirectoryEntry {
       );
 }
 
+/// An open shift somewhere in the estate (`on_duty[]` in `/state`). The name and role come from
+/// `guards[]` by [guardId].
+class DutyShift {
+  const DutyShift({required this.guardId, this.gateId, this.since});
+  final String guardId;
+  final String? gateId;
+  final DateTime? since;
+
+  factory DutyShift.fromJson(Map<String, dynamic> j) =>
+      DutyShift(guardId: j['guard_id'] as String, gateId: j['gate_id'] as String?, since: _dt(j['since']));
+
+  Map<String, dynamic> toJson() => {'guard_id': guardId, 'gate_id': gateId, 'since': since?.toIso8601String()};
+
+  /// `on_duty` as `/state` sends it. Absent or null (an older server): nobody listed.
+  static List<DutyShift> listFromJson(Object? v) => [
+        if (v is List)
+          for (final o in v)
+            if (o is Map<String, dynamic> && o['guard_id'] is String) DutyShift.fromJson(o),
+      ];
+}
+
 /// Everything the gate needs to work offline, minus the HMAC keys (those live in secure storage).
 class StateSnapshot {
   const StateSnapshot({
@@ -350,6 +396,7 @@ class StateSnapshot {
     required this.rollup,
     required this.directory,
     this.shuttle,
+    this.onDuty = const [],
   });
 
   final Estate estate;
@@ -364,6 +411,9 @@ class StateSnapshot {
 
   /// The estate shuttle, or null when the estate runs none (then none of it shows).
   final ShuttleState? shuttle;
+
+  /// Every open shift in the estate when the state was pulled (who is on shift, by guard id).
+  final List<DutyShift> onDuty;
 
   String? gateName(String? id) => gates.where((g) => g.id == id).firstOrNull?.name;
 
@@ -404,6 +454,7 @@ class StateSnapshot {
       rollup: j['rollup'] == null ? null : Rollup.fromJson(j['rollup'] as Map<String, dynamic>),
       directory: [for (final d in (j['directory'] as List? ?? const [])) DirectoryEntry.fromJson(d as Map<String, dynamic>)],
       shuttle: j['shuttle'] == null ? null : ShuttleState.fromJson(j['shuttle'] as Map<String, dynamic>),
+      onDuty: DutyShift.listFromJson(j['on_duty']),
     );
   }
 

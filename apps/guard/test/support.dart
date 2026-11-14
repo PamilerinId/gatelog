@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:gatelog_guard/app/caller.dart';
 import 'package:gatelog_guard/app/controller.dart';
 import 'package:gatelog_guard/core/pin.dart';
 import 'package:gatelog_guard/data/db.dart';
@@ -44,7 +45,7 @@ class FakeApi implements GateApi {
   /// The server ids in a sync body, the way the server answers them.
   static List<String> idsIn(Map<String, dynamic> body) => [
         for (final i in (body['pins'] as List? ?? const [])) (i as Map)['guard_id'] as String,
-        for (final k in ['shifts', 'cards', 'rides', 'ride_events', 'pin_checks', 'visits', 'callbacks', 'entries', 'exits'])
+        for (final k in ['shifts', 'cards', 'rides', 'ride_events', 'pin_checks', 'number_offers', 'visits', 'callbacks', 'entries', 'exits'])
           ...[for (final i in (body[k] as List? ?? const [])) (i as Map)['id'] as String],
         for (final i in body['rollup_checks'] as List) (i as Map)['item_id'] as String,
       ];
@@ -85,6 +86,24 @@ class FakeApi implements GateApi {
     if (status >= 400) throw ApiException(status, 'refused');
     selfies.add((shiftId, jpeg.length));
   }
+
+  /// Clips and photos the server stored: (id, kind, bytes); and the status to answer next (204 when empty).
+  final List<(String, String, int)> media = [];
+  final List<int> mediaStatuses = [];
+  Object? mediaError;
+
+  Future<void> _media(String id, String kind, List<int> bytes) async {
+    if (mediaError != null) throw mediaError!;
+    final status = mediaStatuses.isEmpty ? 204 : mediaStatuses.removeAt(0);
+    if (status >= 400) throw ApiException(status, 'refused');
+    media.add((id, kind, bytes.length));
+  }
+
+  @override
+  Future<void> uploadClip(String token, String clipId, List<int> audio, String contentType) => _media(clipId, 'clip', audio);
+
+  @override
+  Future<void> uploadPhoto(String token, String photoId, String kind, List<int> jpeg) => _media(photoId, kind, jpeg);
 
   @override
   Future<Map<String, dynamic>> fetchCso(String token, String shiftId) async {
@@ -254,4 +273,24 @@ Future<void> pairAndOpenShift(GateController c, {String guardId = 'gu1', List<in
   await c.idle();
   await c.openShift(guardId, selfieJpeg: selfie);
   await c.idle();
+}
+
+/// Caller ID as the call-screening service would give it.
+class FakeCallerId implements CallerId {
+  FakeCallerId([this.call]);
+  IncomingCall? call;
+  bool role = false;
+  int asked = 0;
+
+  @override
+  Future<IncomingCall?> lastIncoming() async => call;
+
+  @override
+  Future<bool> requestRole() async {
+    asked++;
+    return role;
+  }
+
+  @override
+  Future<bool> hasRole() async => role;
 }

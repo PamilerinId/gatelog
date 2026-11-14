@@ -17,7 +17,11 @@ import '../sync/api.dart';
 import '../sync/card_reader.dart';
 import '../sync/outbox.dart';
 import '../sync/push.dart';
+import '../sync/capture.dart' show VoiceClip;
+import '../sync/media.dart';
 import '../sync/selfies.dart';
+import 'admission.dart';
+import 'caller.dart';
 import 'gate_view.dart';
 import 'positions.dart';
 import 'rides.dart';
@@ -62,11 +66,13 @@ class GateController extends ChangeNotifier {
     DateTime Function()? clock,
     LocationSource? location,
     this.cardReader = const NoCardReader(),
+    this.callerId = const NoCallerId(),
   }) : push = push ?? NoPushService(),
        _connectivity = connectivity,
        _clock = clock ?? DateTime.now {
     _pusher = OutboxPusher(store, api, clock: _clock);
     _selfies = SelfieUploader(store, api, clock: _clock);
+    _media = MediaUploader(store, api, clock: _clock);
     positions = location == null ? null : PositionReporter(store, location, clock: _clock);
     positions?.onPoint = _flushPositionsSoon;
     positions?.onChange = notifyListeners;
@@ -82,6 +88,13 @@ class GateController extends ChangeNotifier {
   final DateTime Function() _clock;
   late final OutboxPusher _pusher;
   late final SelfieUploader _selfies;
+  late final MediaUploader _media;
+
+  /// Caller ID from Android's call screening: a hint, never proof.
+  final CallerId callerId;
+
+  /// Record id (an entry or a visit) -> its voice clip, while the clip is still on the phone.
+  Map<String, String> clipRefs = const {};
 
   /// NFC for estate cards (rider pickups, the CSO issuing a card).
   final CardReader cardReader;
@@ -103,7 +116,8 @@ class GateController extends ChangeNotifier {
   /// The shuttle's rides with this phone's records laid over them.
   RideView rides = RideView.empty;
 
-  /// "Taken by Musa": a ride this rider tapped first on the phone but another rider got.
+  /// "Taken by Musa": a ride this rider tapped first on the phone but another rider got. The
+  /// server's reason; empty when it gave none (the screen then says another rider has it).
   String? rideNotice;
   final Set<String> _lostRides = {};
   String? estateName;
@@ -173,6 +187,29 @@ class GateController extends ChangeNotifier {
     for (final g in snapshot?.guards ?? const <Guard>[])
       if (g.isCso) g,
   ];
+
+  /// Whether [guardId] has a shift open: in `on_duty` of the last `/state` pulled (matched by
+  /// id), or on this phone now (before it has synced). A listed shift older than 14 hours has
+  /// ended by itself, so it no longer counts, even when the phone has been offline since.
+  bool onShift(String guardId) {
+    if (shift?.guardId == guardId) return true;
+    final now = _clock();
+    for (final d in snapshot?.onDuty ?? const <DutyShift>[]) {
+      if (d.guardId != guardId) continue;
+      final since = d.since;
+      if (since == null || now.difference(since) <= OpenShift.maxLength) return true;
+    }
+    return false;
+  }
+
+  /// The CSOs a guard picks from for a walk-in decision: those on shift first.
+  List<Guard> get csosOnShiftFirst {
+    final all = csos;
+    bool on(Guard g) => onShift(g.id);
+    return [...all.where(on), ...all.where((g) => !on(g))];
+  }
+
+  bool csoOnShift(Guard g) => onShift(g.id);
 
   // --- lifecycle --------------------------------------------------------------------------
 
@@ -270,6 +307,7 @@ class GateController extends ChangeNotifier {
 
   Future<void> _reloadOutbox() async {
     _outbox = await store.outbox();
+    clipRefs = await store.clipRefs();
     view = GateView.build(snapshot, _outbox);
     rides = RideView.build(snapshot, _outbox);
   }
@@ -546,6 +584,8 @@ class GateController extends ChangeNotifier {
       await store.deleteItems(selectPurgeable(await store.outbox(), pullStarted));
       // After the push, so the shift has reached the server; a 404 waits for the next sync.
       await _selfies.upload(token);
+      // Clips and photos go whenever there is data: the records naming them may come before or after.
+      await _media.upload(token);
       lastSyncAt = _clock();
       await store.setMeta('last_sync_at', lastSyncAt!.toIso8601String());
       lastError = null;
@@ -598,7 +638,7 @@ class GateController extends ChangeNotifier {
     for (final i in lost) {
       _lostRides.add((i.payload['ride_id'] as String).toLowerCase());
       final reason = (i.reason ?? '').trim();
-      rideNotice = reason.isEmpty ? 'Another rider has this ride.' : '${reason[0].toUpperCase()}${reason.substring(1)}';
+      rideNotice = reason.isEmpty ? '' : '${reason[0].toUpperCase()}${reason.substring(1)}';
     }
     await store.deleteItems(lost.map((i) => i.id));
   }
@@ -676,49 +716,162 @@ class GateController extends ChangeNotifier {
   /// Offline code check against the cached visits, with this phone's records laid over them.
   CodeCheck verifyCode(String code) => checkCode(code, view.visits.values, keys, _clock().millisecondsSinceEpoch ~/ 1000);
 
-  Future<String> admitWithCode(Visit v, {String? plate}) => _entry(homeId: v.homeId, guestName: v.guestName, method: 'code', visitId: v.id, plate: plate);
+  /// The guest's code matched: in, with what the cameras took.
+  Future<String> admitWithCode(Visit v, {String? plate, GatePhotos photos = GatePhotos.none}) =>
+      _entry(homeId: v.homeId, guestName: v.guestName, method: 'code', visitId: v.id, plate: plate, photos: photos);
 
-  /// A guest already confirmed by phone ("Coming later") has arrived.
-  Future<String> admitExpected(Visit v, {String? plate}) =>
-      _entry(homeId: v.homeId, guestName: v.guestName, method: 'callback_confirmed', visitId: v.id, plate: plate);
+  /// A guest already confirmed by phone ("Coming later") has arrived. The visit keeps the trust
+  /// it was announced with (a home PIN stays PIN-verified).
+  Future<String> admitExpected(Visit v, {String? plate, GatePhotos photos = GatePhotos.none}) =>
+      _entry(homeId: v.homeId, guestName: v.guestName, method: 'callback_confirmed', visitId: v.id, plate: plate, photos: photos);
 
-  /// No code, resident confirmed on the callback, guest is here: in now. The server makes the
+  /// The resident confirmed on the callback and the guest is here: in now. The server makes the
   /// visit, which comes back in /state carrying this entry's id.
-  Future<String> admitOnCallback(String homeId, String guestName, {String? plate}) =>
-      _entry(homeId: homeId, guestName: guestName, method: 'callback_confirmed', plate: plate);
+  Future<String> admitOnCallback(
+    String homeId,
+    String? guestName, {
+    String? plate,
+    GatePhotos photos = GatePhotos.none,
+    VoiceClip? clip,
+    String? callerMasked,
+  }) => _entry(homeId: homeId, guestName: guestName, method: 'callback_confirmed', plate: plate, photos: photos, clip: clip, callerMasked: callerMasked);
 
-  /// Nobody at the home could be reached and the CSO (or guard on duty) decided to admit.
-  /// Both who decided and the reason are required; the server rejects it without them.
-  Future<String> admitWalkIn({required String homeId, required String guestName, required String decidedBy, required String reason, String? plate}) {
+  /// The caller gave the home PIN and the guest is here (`pin_confirmed`, PIN-verified).
+  Future<String> admitOnPin(String homeId, {String? guestName, String? plate, GatePhotos photos = GatePhotos.none, VoiceClip? clip, String? callerMasked}) =>
+      _entry(homeId: homeId, guestName: guestName, method: 'pin_confirmed', plate: plate, photos: photos, clip: clip, callerMasked: callerMasked);
+
+  /// Nobody at the home confirmed and the CSO decided to admit (unverified: the server texts
+  /// the home "Not you? Reply NO"). Both who decided and the reason are required; the server
+  /// rejects it without them. A CSO deciding on their own shift sends their own id: the server
+  /// flags it as decided alone. [reasonClip] is the "Other" reason, said; the API has no field
+  /// for it, so its id goes in `note`.
+  Future<String> admitWalkIn({
+    required String homeId,
+    String? guestName,
+    required String decidedBy,
+    required String reason,
+    String? plate,
+    GatePhotos photos = GatePhotos.none,
+    VoiceClip? clip,
+    VoiceClip? reasonClip,
+    String? callerMasked,
+    String? visitId,
+  }) {
     if (decidedBy.trim().isEmpty) throw ArgumentError('Pick who decided.');
     if (reason.trim().isEmpty) throw ArgumentError('A walk-in needs a reason.');
-    return _entry(homeId: homeId, guestName: guestName, method: 'walk_in_admitted', decidedBy: decidedBy, reason: reason.trim(), plate: plate);
+    return _entry(
+      homeId: homeId,
+      guestName: guestName,
+      method: 'walk_in_admitted',
+      visitId: visitId,
+      decidedBy: decidedBy,
+      reason: reason.trim(),
+      plate: plate,
+      photos: photos,
+      clip: clip,
+      reasonClip: reasonClip,
+      callerMasked: callerMasked,
+    );
   }
 
-  Future<String> turnAway({required String homeId, required String guestName, String? visitId, String? reason, String? plate}) =>
-      _entry(homeId: homeId, guestName: guestName, method: 'refused', visitId: visitId, reason: reason, plate: plate);
+  Future<String> turnAway({
+    required String homeId,
+    String? guestName,
+    String? visitId,
+    String? reason,
+    String? plate,
+    VoiceClip? clip,
+    String? callerMasked,
+    String? decidedBy,
+  }) => _entry(
+    homeId: homeId,
+    guestName: guestName,
+    method: 'refused',
+    visitId: visitId,
+    reason: reason,
+    plate: plate,
+    clip: clip,
+    callerMasked: callerMasked,
+    decidedBy: decidedBy,
+  );
 
   Future<String> _entry({
     required String homeId,
-    required String guestName,
+    required String? guestName,
     required String method,
     String? visitId,
     String? reason,
     String? decidedBy,
     String? plate,
-  }) => _record(OutboxKind.entry, {
-    'id': _uuid.v4(),
-    'home_id': homeId,
-    'guest_name': guestName.trim(),
-    'method': method,
-    'visit_id': visitId,
-    ..._who,
-    'gate_id': _gateId,
-    'plate': _plate(plate),
-    'decided_by': decidedBy,
-    'reason': (reason?.trim().isEmpty ?? true) ? null : reason!.trim(),
-    'at': _now,
-  });
+    GatePhotos photos = GatePhotos.none,
+    VoiceClip? clip,
+    VoiceClip? reasonClip,
+    String? callerMasked,
+  }) async {
+    final id = _uuid.v4();
+    final who = _who;
+    final clipId = await _keepClip(clip, id);
+    final reasonClipId = await _keepClip(reasonClip, id);
+    final visitorPhotoId = await _keepPhoto(photos.visitor, MediaKind.visitor, id);
+    final platePhotoId = await _keepPhoto(photos.plate, MediaKind.plate, id);
+    return _record(OutboxKind.entry, {
+      'id': id,
+      'home_id': homeId,
+      'guest_name': _guestName(guestName, clipId),
+      'method': method,
+      'visit_id': visitId,
+      ...who,
+      'gate_id': _gateId,
+      'plate': _plate(plate ?? photos.plateText),
+      'decided_by': decidedBy,
+      'reason': (reason?.trim().isEmpty ?? true) ? null : reason!.trim(),
+      'note': reasonClipId == null ? null : 'Reason clip: $reasonClipId',
+      'caller_masked': callerMasked,
+      'name_clip_id': clipId,
+      'visitor_photo_id': visitorPhotoId,
+      'plate_photo_id': platePhotoId,
+      'photo_skipped': visitorPhotoId == null ? photos.skipped : null,
+      'at': _now,
+    });
+  }
+
+  /// The name the home gave, "Voice clip" when the guard said it instead, or "Visitor".
+  static String _guestName(String? given, String? clipId) {
+    final name = given?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return clipId != null ? voiceClipName : 'Visitor';
+  }
+
+  /// Keeps a clip for upload; its id goes on the record that names it ([ref]).
+  Future<String?> _keepClip(VoiceClip? clip, String ref) async {
+    if (clip == null || clip.bytes.isEmpty) return null;
+    final id = _uuid.v4();
+    await store.saveMedia(MediaItem(id: id, kind: MediaKind.clip, bytes: clip.bytes, contentType: clip.contentType, ref: ref, createdAt: _clock()));
+    return id;
+  }
+
+  Future<String?> _keepPhoto(List<int>? jpeg, String kind, String ref) async {
+    if (jpeg == null || jpeg.isEmpty) return null;
+    final id = _uuid.v4();
+    await store.saveMedia(MediaItem(id: id, kind: kind, bytes: jpeg, contentType: 'image/jpeg', ref: ref, createdAt: _clock()));
+    return id;
+  }
+
+  /// True while a clip for one of these records (an entry, a visit) is still on the phone.
+  bool hasClip(Iterable<String?> refs) => refs.any((r) => r != null && clipRefs.containsKey(r));
+
+  /// The bytes and type of that clip, to play it back at exit.
+  Future<VoiceClip?> clipOf(Iterable<String?> refs) async {
+    for (final r in refs) {
+      final id = r == null ? null : clipRefs[r];
+      if (id == null) continue;
+      final bytes = await store.mediaBytes(id);
+      if (bytes == null) continue;
+      final info = (await store.mediaWaiting()).where((m) => m.id == id).firstOrNull;
+      return VoiceClip(bytes, contentType: info?.contentType ?? 'audio/mp4');
+    }
+    return null;
+  }
 
   /// Exit by code or by tapping the name in the Leaving list.
   Future<String> recordExit(InsideGuest g, {required String method, String? plate}) => _record(OutboxKind.exit, {
@@ -776,43 +929,91 @@ class GateController extends ChangeNotifier {
 
   /// The resident confirmed on the callback. Recorded at once, so the call is on file even if
   /// the guard never gets to choose in now or later.
-  Future<ConfirmedCall> recordConfirmedCall({required String homeId, required String numberId}) async {
-    final payload = _callback(homeId: homeId, numberId: numberId, outcome: 'confirmed');
+  Future<ConfirmedCall> recordConfirmedCall({required String homeId, required String numberId, String? visitId}) async {
+    final payload = _callback(homeId: homeId, numberId: numberId, outcome: 'confirmed', visitId: visitId);
     await _record(OutboxKind.callback, payload);
     return ConfirmedCall(payload);
   }
 
-  /// Confirmed, "Coming later: expect them": the visit, then the confirming call again with the
-  /// visit, so the server links them.
+  /// "Coming later": the visit, then (after a callback) the confirming call again with the
+  /// visit, so the server links them. [trust] is `pin_verified` when the caller gave the home
+  /// PIN instead (no callback). The name is a clip when the guard said it.
   Future<String> expectLater({
     required Home home,
     required String? residentId,
-    required ConfirmedCall call,
-    required String guestName,
+    ConfirmedCall? call,
+    String? guestName,
     required Stay stay,
     DateTime? until,
+    VoiceClip? clip,
+    String trust = 'verified',
   }) async {
     final who = _who;
     final plan = planVisit(time, stay, until: until);
     final id = _uuid.v4();
+    final clipId = await _keepClip(clip, id);
     await store.enqueue(OutboxKind.visit, id, {
       'id': id,
       'home_id': home.id,
       'resident_id': residentId,
-      'guest_name': guestName.trim(),
+      'guest_name': _guestName(guestName, clipId),
       'window_start': isoNow(plan.windowStart),
       'window_end': isoNow(plan.windowEnd),
       'expected_until': isoNow(plan.expectedUntil),
       'stay_type': plan.stayType,
       'stay_minutes': plan.stayMinutes,
       'stay_given': true,
+      'trust': trust,
+      'name_clip_id': clipId,
       ...who,
     }, at: _clock());
-    await store.requeue(OutboxKind.callback, call.id, {...call.payload, 'visit_id': id}, at: _clock());
+    if (call != null) await store.requeue(OutboxKind.callback, call.id, {...call.payload, 'visit_id': id}, at: _clock());
     await _reloadOutbox();
     notifyListeners();
     unawaited(syncNow());
     return id;
+  }
+
+  /// The caller gave the home PIN (`homes[].house_code_hash`, checked offline like a guard
+  /// PIN). Every try, right or wrong, is a `pin_checks` record (`context: gate`, with the
+  /// caller's masked number when the phone saw it); a wrong one texts the home. Three wrong
+  /// tries per call is the call flow's rule. Null when the home has no PIN. The PIN is never
+  /// stored, sent or logged.
+  Future<bool?> checkGatePin(String homeId, String pin, {String? callerMasked}) async {
+    final hash = snapshot?.home(homeId)?.houseCodeHash;
+    if (hash == null) return null;
+    final ok = RegExp(r'^\d{4}$').hasMatch(pin) && await pins.check(pin, hash);
+    await _record(OutboxKind.pinCheck, {
+      'id': _uuid.v4(),
+      'home_id': homeId,
+      'ok': ok,
+      'context': 'gate',
+      'caller_masked': callerMasked,
+      ..._who,
+      'at': _now,
+    });
+    return ok;
+  }
+
+  /// "Add this number for Mrs Adeyemi?" Yes: the full number the call came from, the only
+  /// record that carries one. The home's registered number is asked to reply YES.
+  Future<String> offerNumber({required String residentId, required String number}) =>
+      _record(OutboxKind.numberOffer, {'id': _uuid.v4(), 'resident_id': residentId, 'number': number, ..._who, 'at': _now});
+
+  /// The last incoming call, if it rang in the last 10 minutes.
+  Future<IncomingCall?> recentCaller() async {
+    final call = await callerId.lastIncoming();
+    if (call == null) return null;
+    final age = _clock().difference(call.at);
+    return age.isNegative || age > callerHintFor ? null : call;
+  }
+
+  /// Asks once per pairing for the call-screening role. Refused: nothing changes.
+  Future<void> askForCallerIdOnce() async {
+    if (await store.meta('caller_id_asked') != null) return;
+    await store.setMeta('caller_id_asked', isoNow(_clock()));
+    if (await callerId.hasRole()) return;
+    await callerId.requestRole();
   }
 
   Future<void> rollupCheck(String itemId, String result) =>
@@ -1006,6 +1207,7 @@ class GateController extends ChangeNotifier {
   /// Undo a record that has not left the phone yet.
   Future<bool> undo(String id) async {
     final ok = await store.cancelPending(id);
+    if (ok) await store.deleteMediaFor(id);
     await _reloadOutbox();
     notifyListeners();
     return ok;
@@ -1027,6 +1229,7 @@ class GateController extends ChangeNotifier {
         '${switch (p['method']) {
           'refused' => 'Turned away',
           'walk_in_admitted' => 'Walk-in',
+          'pin_confirmed' => 'Entry on the home PIN',
           _ => 'Entry',
         }}: ${p['guest_name']}, ${home(p['home_id'])}',
       OutboxKind.exit => 'Exit: ${p['guest_name'] ?? 'guest'}',
@@ -1037,8 +1240,13 @@ class GateController extends ChangeNotifier {
       OutboxKind.pin => 'New PIN for ${person(p['guard_id'])}. Set it again at the next shift.',
       OutboxKind.shift => '${p['ended_at'] == null ? 'Shift start' : 'Shift end'}: ${person(p['guard_id'])}',
       OutboxKind.pinCheck => 'Home PIN check (${p['ok'] == true ? 'right' : 'wrong'}), ${home(p['home_id'])}',
+      OutboxKind.numberOffer => 'New number for ${snapshot?.resident(p['resident_id'] as String?)?.name ?? 'a resident'}',
       OutboxKind.card => 'Estate card for ${snapshot?.resident(p['resident_id'] as String?)?.name ?? 'a resident'}',
-      OutboxKind.ride => 'Shuttle booking: ${rideKindLabel(p['kind'] as String? ?? '')}, ${home(p['home_id'])}',
+      OutboxKind.ride => 'Shuttle booking: ${switch (p['kind']) {
+          RideKind.delivery => 'Parcel',
+          RideKind.guest => 'Guest',
+          _ => 'Resident',
+        }}, ${home(p['home_id'])}',
       OutboxKind.rideEvent =>
         'Shuttle ride: ${switch (p['event']) {
           'accept' => 'take it',

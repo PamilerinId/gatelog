@@ -13,6 +13,7 @@ import '../kit.dart';
 import 'directory_screen.dart';
 import 'shuttle_screens.dart';
 import 'sync_screen.dart';
+import '../words.dart';
 
 /// The rider view, to the handoff's rules: one ride at a time. A ride waiting: "Take it?" Yes or
 /// No. A ride taken: tap their card (or No card, then the home PIN). Under way: "Did they
@@ -53,20 +54,20 @@ class _RiderHomeState extends State<RiderHome> {
 
   Future<void> _newRide() async {
     final c = GateScope.read(context);
-    final who = await askWhoRode(context, label: 'New ride');
+    final who = await askWhoRode(context, label: tr(M.newRide));
     if (who == null || !mounted) return;
     final home = who.home;
     final stops = rideStops(c.snapshot!, home: home);
     final from = await askEach<RideStop>(
       context,
       items: stops,
-      label: 'New ride',
-      question: (s) => s.kind == 'home' ? 'Picking up at their house?' : 'Picking up at ${s.label}?',
+      label: tr(M.newRide),
+      question: (s) => s.kind == 'home' ? tr(M.pickingUpAtHome) : tr(M.pickingUpAt, {'place': s.label}),
       about: (s) => stopCard(home, s),
     );
     if (from == null || !mounted) return;
     if (from.value == null) {
-      speak('Ask the CSO to book this ride.');
+      say(M.askCsoToBook);
       return;
     }
     final to = await askEach<RideStop>(
@@ -75,17 +76,17 @@ class _RiderHomeState extends State<RiderHome> {
         for (final s in stops)
           if (!s.sameAs(from.value!)) s,
       ],
-      label: 'New ride',
-      question: (s) => s.kind == 'home' ? 'Going to their house?' : 'Going to ${s.label}?',
+      label: tr(M.newRide),
+      question: (s) => s.kind == 'home' ? tr(M.goingToTheirHouse) : tr(M.goingTo, {'place': s.label}),
       about: (s) => stopCard(home, s),
     );
     if (to == null || !mounted) return;
     if (to.value == null) {
-      speak('Ask the CSO to book this ride.');
+      say(M.askCsoToBook);
       return;
     }
     await c.newFlagRide(home: home, pickup: from.value!, dropoff: to.value!, who: who.confirm);
-    speak('Ride started.');
+    say(M.rideStarted);
   }
 
   Future<void> _menu() async {
@@ -101,11 +102,11 @@ class _RiderHomeState extends State<RiderHome> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Pill(label: 'Emergency numbers', icon: Icons.warning_amber_rounded, color: Palette.of(ctx).noText, onTap: () => Navigator.pop(ctx, 'numbers')),
+                Pill(label: tr(M.emergencyNumbers), icon: Icons.warning_amber_rounded, color: Palette.of(ctx).noText, onTap: () => Navigator.pop(ctx, 'numbers')),
                 const SizedBox(height: 10),
-                Pill(label: 'Sync', icon: Icons.sync, onTap: () => Navigator.pop(ctx, 'sync')),
+                Pill(label: tr(M.sync), icon: Icons.sync, onTap: () => Navigator.pop(ctx, 'sync')),
                 const SizedBox(height: 10),
-                Pill(label: 'End my shift', icon: Icons.logout, onTap: () => Navigator.pop(ctx, 'end')),
+                Pill(label: tr(M.endMyShift), icon: Icons.logout, onTap: () => Navigator.pop(ctx, 'end')),
               ],
             ),
           ),
@@ -116,14 +117,7 @@ class _RiderHomeState extends State<RiderHome> {
     final nav = Navigator.of(context);
     switch (pick) {
       case 'numbers':
-        nav.push(
-          MaterialPageRoute<void>(
-            builder: (_) => Scaffold(
-              appBar: AppBar(title: const Text('Emergency numbers')),
-              body: const SafeArea(child: DirectoryScreen()),
-            ),
-          ),
-        );
+        nav.push(MaterialPageRoute<void>(builder: (_) => const EmergencyNumbersScreen()));
       case 'sync':
         nav.push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
       case 'end':
@@ -136,16 +130,16 @@ class _RiderHomeState extends State<RiderHome> {
     final open = c.myRides.where((r) => r.state == RideState.accepted).length;
     final yes = await askYesNo(
       context,
-      label: 'End shift',
-      question: 'End your shift?',
-      say: open > 0 ? 'Rides you took and have not picked up go back to the queue. End your shift?' : 'End your shift?',
-      about: open > 0 ? Text('Rides you took and have not picked up go back to the queue.', style: mutedStyle(context, 18)) : null,
+      label: tr(M.endShift),
+      question: tr(M.endShiftQ),
+      say: [if (open > 0) tr(M.ridesGoBack), tr(M.endShiftQ)].join(' '),
+      about: open > 0 ? Text(tr(M.ridesGoBack), style: mutedStyle(context, 18)) : null,
     );
     if (yes != true || !mounted) return;
-    final next = await askEach<Guard>(context, items: c.takeoverCandidates, label: 'End shift', question: (g) => 'Is ${g.name} taking over?');
+    final next = await askEach<Guard>(context, items: c.takeoverCandidates, label: tr(M.endShift), question: (g) => tr(M.isTakingOver, {'name': g.name}));
     if (next == null) return;
     await c.endShift(handedTo: next.value?.id);
-    speak('Shift ended.');
+    say(M.shiftEnded);
   }
 
   @override
@@ -165,15 +159,16 @@ class _RiderHomeState extends State<RiderHome> {
     final Widget body;
     String aloud;
     if (c.rideNotice != null) {
-      aloud = c.rideNotice!;
+      final notice = c.rideNotice!.isEmpty ? tr(M.anotherRiderHasIt) : c.rideNotice!;
+      aloud = notice;
       _announce(aloud, aloud, notice: true);
       body = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ResultMark(icon: Icons.close, bad: true, text: c.rideNotice!),
+          ResultMark(icon: Icons.close, bad: true, text: notice),
           const SizedBox(height: 20),
-          BigTile(label: 'OK', icon: Icons.check, primary: true, height: 96, onTap: c.clearRideNotice),
+          BigTile(label: tr(M.ok), icon: Icons.check, primary: true, height: 96, onTap: c.clearRideNotice),
         ],
       );
     } else if (mine.isNotEmpty) {
@@ -183,32 +178,32 @@ class _RiderHomeState extends State<RiderHome> {
       body = _MyRide(key: ValueKey('${r.id}:${r.state}'), ride: r);
     } else if (queue.isNotEmpty) {
       final r = queue.first;
-      aloud = '${rideWords(c.snapshot, r, wait(r))} Take it?';
+      aloud = '${rideWords(c.snapshot, r, wait(r))} ${tr(M.takeIt)}';
       _announce(r.id, aloud);
       body = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          RideSummary(ride: r, counter: '${waiting.indexOf(r) + 1} OF ${waiting.length}'),
+          RideSummary(ride: r, counter: tr(M.rideCounter, {'n': waiting.indexOf(r) + 1, 'total': waiting.length})),
           const SizedBox(height: 8),
-          const Headline('Take it?', center: true),
+          Headline(tr(M.takeIt), center: true),
           YesNo(
             onYes: () async {
               await c.acceptRide(r);
-              speak('Ride taken.');
+              say(M.rideTaken);
             },
             onNo: () => setState(() => _skipped.add(r.id)),
           ),
         ],
       );
     } else {
-      aloud = waiting.isEmpty ? 'No rides now.' : 'No more rides.';
+      aloud = tr(waiting.isEmpty ? M.noRidesNow : M.noMoreRides);
       body = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.two_wheeler, size: 96, color: p.muted),
           Headline(aloud, center: true),
-          if (waiting.isNotEmpty) Pill(label: 'See them again', icon: Icons.replay, onTap: () => setState(_skipped.clear)),
+          if (waiting.isNotEmpty) Pill(label: tr(M.seeThemAgain), icon: Icons.replay, onTap: () => setState(_skipped.clear)),
         ],
       );
     }
@@ -239,7 +234,7 @@ class _RiderHomeState extends State<RiderHome> {
                         style: const TextStyle(fontFamily: inter, fontSize: 17, fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        [bike?.label ?? 'SHUTTLE', if (c.lastError != null) 'NO NETWORK'].join(' · ').toUpperCase(),
+                        [bike?.label ?? tr(M.shuttleTag), if (c.lastError != null) tr(M.noNetworkTag)].join(' · ').toUpperCase(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: monoStyle(context, 12, color: c.lastError != null ? p.warnText : p.muted, weight: FontWeight.w500),
@@ -247,9 +242,9 @@ class _RiderHomeState extends State<RiderHome> {
                     ],
                   ),
                 ),
-                RoundButton(icon: Icons.volume_up_outlined, label: 'Read aloud', onTap: () => speak(aloud)),
+                RoundButton(icon: Icons.volume_up_outlined, label: tr(M.readAloud), onTap: () => speak(aloud)),
                 const SizedBox(width: 8),
-                RoundButton(icon: Icons.more_vert, label: 'Menu', onTap: _menu),
+                RoundButton(icon: Icons.more_vert, label: tr(M.menu), onTap: _menu),
               ],
             ),
           ),
@@ -263,7 +258,7 @@ class _RiderHomeState extends State<RiderHome> {
             child: Center(child: SingleChildScrollView(child: body)),
           ),
           const SizedBox(height: 10),
-          Pill(label: 'New ride', icon: Icons.add, onTap: _newRide),
+          Pill(label: tr(M.newRide), icon: Icons.add, onTap: _newRide),
         ],
       ),
     );
@@ -276,7 +271,7 @@ class _MyRide extends StatefulWidget {
   final Ride ride;
 
   static String question(Ride r) =>
-      r.state == RideState.accepted ? (r.isDelivery ? 'Got the parcel?' : 'Tap their card.') : (r.isDelivery ? 'Did the parcel arrive?' : 'Did they arrive?');
+      tr(r.state == RideState.accepted ? (r.isDelivery ? M.gotTheParcel : M.tapTheirCard) : (r.isDelivery ? M.didParcelArrive : M.didTheyArrive));
 
   @override
   State<_MyRide> createState() => _MyRideState();
@@ -297,21 +292,21 @@ class _MyRideState extends State<_MyRide> {
 
   Future<void> _dropOff(GateController c, Ride r) async {
     if (r.isDelivery) {
-      final who = await askWhoRode(context, home: c.snapshot?.home(r.homeId), title: 'Tap their card', label: 'Who took the parcel');
+      final who = await askWhoRode(context, home: c.snapshot?.home(r.homeId), label: tr(M.whoTookParcel));
       if (who == null) return;
       await c.dropOff(r, who: who.confirm);
     } else {
       await c.dropOff(r);
     }
-    speak('Dropped off.');
-    c.showNotice('Dropped off at ${r.dropoff.label}');
+    say(M.droppedOff);
+    c.showNotice(tr(M.droppedOffAt, {'place': r.dropoff.label}));
   }
 
   Future<void> _noShow(GateController c, Ride r) async {
-    final yes = await askYesNo(context, label: 'Nobody came', question: 'Nobody came?', say: 'Nobody came? The ride closes.');
+    final yes = await askYesNo(context, label: tr(M.nobodyCame), question: tr(M.nobodyCameQ), say: tr(M.nobodyCameSay));
     if (yes == true) {
       await c.noShow(r);
-      speak('Ride closed.');
+      say(M.rideClosed);
     }
   }
 
@@ -325,18 +320,18 @@ class _MyRideState extends State<_MyRide> {
       children: [
         Expanded(
           child: Pill(
-            label: 'Hand back',
+            label: tr(M.handBack),
             onTap: _busy
                 ? null
                 : () => _do(() async {
                     await c.releaseRide(r);
-                    speak('Ride handed back.');
+                    say(M.rideHandedBack);
                   }),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Pill(label: 'Nobody came', color: p.noText, onTap: _busy ? null : () => _do(() => _noShow(c, r))),
+          child: Pill(label: tr(M.nobodyCame), color: p.noText, onTap: _busy ? null : () => _do(() => _noShow(c, r))),
         ),
       ],
     );
@@ -348,7 +343,7 @@ class _MyRideState extends State<_MyRide> {
           fromGate: r.source == 'gate',
           onDone: (who) => _do(() async {
             await c.pickUp(r, who: who.confirm);
-            speak('Picked up.');
+            say(M.pickedUp);
           }),
         ),
         const SizedBox(height: 10),
@@ -356,15 +351,15 @@ class _MyRideState extends State<_MyRide> {
       ]);
     } else if (r.state == RideState.accepted) {
       children.addAll([
-        const Headline('Got the parcel?', center: true),
+        Headline(tr(M.gotTheParcel), center: true),
         YesNo(
           onYes: _busy
               ? null
               : () => _do(() async {
                   await c.pickUp(r);
-                  speak('Parcel collected.');
+                  say(M.parcelCollected);
                 }),
-          onNo: () => speak('Tap Yes when you have the parcel.'),
+          onNo: () => say(M.tapYesWithParcel),
         ),
         const SizedBox(height: 10),
         secondary,
@@ -372,7 +367,7 @@ class _MyRideState extends State<_MyRide> {
     } else {
       children.addAll([
         Headline(_MyRide.question(r), center: true),
-        YesNo(onYes: _busy ? null : () => _do(() => _dropOff(c, r)), onNo: () => speak('Tap Yes when you get there.')),
+        YesNo(onYes: _busy ? null : () => _do(() => _dropOff(c, r)), onNo: () => say(M.tapYesWhenThere)),
       ]);
     }
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
@@ -397,11 +392,11 @@ class _LocationStrip extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                problem == LocationAccess.serviceOff ? 'Location is off' : 'Location not allowed',
+                tr(problem == LocationAccess.serviceOff ? M.locationOff : M.locationRefused),
                 style: TextStyle(fontFamily: inter, fontSize: 18, fontWeight: FontWeight.w700, color: p.warnText),
               ),
             ),
-            Pill(label: 'Turn on', onTap: GateScope.read(context).retryLocation),
+            Pill(label: tr(M.turnOn), onTap: GateScope.read(context).retryLocation),
           ],
         ),
       ),

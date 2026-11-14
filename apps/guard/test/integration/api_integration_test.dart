@@ -4,7 +4,7 @@
 ///   GATELOG_IT_PAIRING_CODE   an unused pairing code from POST /v1/admin/devices
 ///   GATELOG_IT_CODE           the six-digit code of a guest expected now (computed server side)
 ///   GATELOG_IT_ADMIN_TOKEN    the estate admin's token, to check what the server stored
-///   GATELOG_IT_HOUSE_CODE     14B's shuttle house code (optional; the flag-down then uses it)
+///   GATELOG_IT_HOUSE_CODE     14B's home PIN (optional; the PIN-confirmed entry and the flag-down then use it)
 ///
 /// `tool/it_seed.py` prints all of them. See README.md, "Integration check".
 library;
@@ -12,9 +12,13 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gatelog_guard/app/admission.dart';
+import 'package:gatelog_guard/app/call_flow.dart';
+import 'package:gatelog_guard/app/caller.dart';
 import 'package:gatelog_guard/app/controller.dart';
 import 'package:gatelog_guard/app/positions.dart';
 import 'package:gatelog_guard/app/rides.dart';
@@ -25,6 +29,7 @@ import 'package:gatelog_guard/core/verify.dart';
 import 'package:gatelog_guard/data/secrets.dart';
 import 'package:gatelog_guard/data/shuttle.dart';
 import 'package:gatelog_guard/sync/api.dart';
+import 'package:gatelog_guard/sync/capture.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
@@ -56,6 +61,10 @@ void main() {
     expect(r.statusCode, 200, reason: r.body);
     return jsonDecode(r.body);
   }
+
+  /// A binary admin read (a clip, a photo): only the status matters here.
+  Future<int> adminStatus(String path) async =>
+      (await http.get(Uri.parse('$base$path'), headers: {'Authorization': 'Bearer $adminToken'})).statusCode;
 
   void noneRejected(GateController c) =>
       expect(c.view.needsAttention, isEmpty, reason: c.view.needsAttention.map((i) => '${i.kind}: ${i.reason}').join('; '));
@@ -123,7 +132,13 @@ void main() {
     await c.turnAway(homeId: home.id, guestName: 'Hawker', reason: 'Mrs Adeyemi said no on the callback');
     await c.recordCallback(homeId: home.id, numberId: number.id, outcome: 'no_answer');
     await c.recordCallback(homeId: home.id, numberId: number.id, outcome: 'no_answer');
-    await c.admitWalkIn(homeId: home.id, guestName: 'Electrician', decidedBy: bello.id, reason: 'Estate electrician, known to the CSO');
+    await c.admitWalkIn(
+      homeId: home.id,
+      guestName: 'Electrician',
+      decidedBy: bello.id,
+      reason: 'Estate electrician, known to the CSO',
+      callerMasked: '0803•••1234',
+    );
     await c.idle();
     await c.syncNow();
     noneRejected(c);
@@ -134,6 +149,66 @@ void main() {
     final walkIn = ((await admin('/v1/admin/entries?method=walk_in_admitted')) as List).single;
     expect(walkIn['decided_by'], 'Mr Bello');
     expect(walkIn['reason'], 'Estate electrician, known to the CSO');
+    // Admitted on a description: unverified, so the server texted the home "Not you? Reply NO".
+    expect(walkIn['trust'], 'unverified');
+    expect(walkIn['caller'], '0803•••1234');
+    expect(walkIn['decided_alone'], isFalse);
+
+    // --- Phone call: a resident rings from a new number; the callback is the proof ------------
+    // The guard says the visitor's name (a clip), photographs the visitor and the plate, and the
+    // home is asked to confirm the new number. All through the call flow, as the screens drive it.
+    final newNumber = '0809${(Random().nextInt(9000000) + 1000000)}';
+    final rang = IncomingCall(newNumber, DateTime.now());
+    final m4a = Uint8List.fromList([0, 0, 0, 0x18, ...'ftypM4A '.codeUnits, ...List.filled(3000, 1)]);
+    final call = CallFlow(c, home, caller: rang);
+    final (callee, dialled) = call.numbers.first;
+    call.dialling(callee, dialled);
+    call.calledBack(DateTime.now());
+    call.nameClip = VoiceClip(m4a);
+    expect(await call.answer(CallOutcome.confirmed), CallStep.hereNow);
+    final plateJpeg = shrinkGatePhotoSync(Uint8List.fromList(img.encodeJpg(photo)))!;
+    final clipped = await call.letIn(GatePhotos(visitor: jpeg, plate: plateJpeg, plateText: 'KJA 456 XY'));
+    expect(call.step, CallStep.offerNumber);
+    await call.offer(true);
+
+    // The home PIN (the real hash, checked offline): PIN-verified.
+    String? pinEntry;
+    if (houseCode != null) {
+      final byPin = CallFlow(c, home, caller: rang);
+      byPin.wantPin();
+      expect(await byPin.tryPin(houseCode), isTrue);
+      pinEntry = await byPin.letIn(const GatePhotos(skipped: PhotoSkipped.refused));
+    }
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    expect(await store.mediaWaiting(), isEmpty, reason: 'the clip and both photos uploaded, then deleted');
+
+    final entries = (await admin('/v1/admin/entries')) as List;
+    final spoken = entries.firstWhere((e) => e['id'] == clipped);
+    expect(spoken['method'], 'callback_confirmed');
+    expect(spoken['trust'], 'verified');
+    expect(spoken['guest_name'], 'Voice clip');
+    expect(spoken['name_clip_id'], isNotNull);
+    expect(spoken['caller'], maskCaller(newNumber));
+    expect(spoken['plate'], 'KJA456XY');
+    expect(spoken['visitor_photo_id'], isNotNull);
+    expect(spoken['plate_photo_id'], isNotNull);
+    expect(await adminStatus('/v1/admin/clips/${spoken['name_clip_id']}'), 200, reason: 'the clip reached the server');
+    expect(await adminStatus('/v1/admin/photos/${spoken['visitor_photo_id']}'), 200);
+    expect(await adminStatus('/v1/admin/photos/${spoken['plate_photo_id']}'), 200);
+    if (pinEntry != null) {
+      final pin = entries.firstWhere((e) => e['id'] == pinEntry);
+      expect(pin['method'], 'pin_confirmed');
+      expect(pin['trust'], 'pin_verified');
+      expect(pin['photo_skipped'], 'refused');
+      expect(pin['caller'], maskCaller(newNumber));
+    }
+    // The new number waits, invisible to the gate, for the home's YES.
+    final adeyemiRow = ((await admin('/v1/admin/residents?q=Adeyemi')) as List).single as Map<String, dynamic>;
+    final offered = (adeyemiRow['numbers'] as List).cast<Map<String, dynamic>>().where((n) => n['last4'] == newNumber.substring(newNumber.length - 4));
+    expect(offered.single['pending'], isTrue);
+    expect(c.snapshot!.home(home.id)!.residents.first.numbers.map((n) => n.last4), isNot(contains(newNumber.substring(newNumber.length - 4))));
 
     // End with a handover to the CSO.
     await c.endShift(handedTo: bello.id);
@@ -161,6 +236,22 @@ void main() {
     expect(musaToday.handedTo, 'Mr Bello');
     expect(musaToday.handover, {'inside': isA<int>(), 'unsynced': isA<int>(), 'night_list_open': 0});
     expect(musaToday.selfie, isTrue);
+
+    // The CSO on the gate decides a walk-in alone: no "pick the CSO", decided_by is the CSO.
+    final alone = CallFlow(c, c.snapshot!.home(home.id)!);
+    expect(alone.decidingAlone, isTrue);
+    alone.supervisor();
+    expect(alone.step, CallStep.csoReason);
+    alone.pickReason(CsoReason.known);
+    final aloneId = await alone.letIn(const GatePhotos(skipped: PhotoSkipped.noCamera));
+    await c.idle();
+    await c.syncNow();
+    noneRejected(c);
+    final decided = ((await admin('/v1/admin/entries?method=walk_in_admitted')) as List).firstWhere((e) => e['id'] == aloneId);
+    expect(decided['decided_alone'], isTrue);
+    expect(decided['trust'], 'unverified');
+    await c.refreshCso();
+    expect(c.cso!.walkInsToday.firstWhere((d) => d.entryId == aloneId).decidedAlone, isTrue);
 
     // Retrying a batch is safe: the second time the server answers duplicates.
     final token = (await Secrets(secretStore).token())!;

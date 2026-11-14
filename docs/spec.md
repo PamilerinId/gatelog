@@ -132,7 +132,13 @@ One app on every Gatelog gate phone. Who signs in decides what it shows.
 - The PIN works offline: the phone holds a salted, slow hash for each guard. Five wrong tries lock that guard out on that phone for 5 minutes.
 - If the camera fails, the shift still starts and is marked "no selfie", so a broken camera never stops a gate.
 
-**Guard view.** The keypad is the screen. Under it, two buttons: **No code** (find the home, call a registered number, then let the guest in now or expect them later; if nobody confirms, turn them away) and **Leaving** (tap the person, or re-enter their code). A small menu holds emergency numbers and End shift. Nothing else: no counts, no rota, no night list.
+**Guard view.** The rules are in `CLAUDE.md` (Gate phone UX): one job per screen, Yes or No decisions, no typing, every result read aloud. The home screen is always the same three big buttons in the same place:
+
+- **Visitor has code:** the code keypad, then the house number large, the guest's name and "Let them in?" Yes or No.
+- **Phone call:** a caller from a registered number is suggested ("Is it Mrs Adeyemi, 14B?"); otherwise pick the street, then the house. Call the home back, say the visitor's name into the phone (a voice clip), and ask "Did they say yes?". A caller can also give the home PIN. With no answer, the decision goes to a CSO on shift, who is offered first.
+- **Visitor leaving:** tap the person.
+
+Emergency numbers sit below the three buttons. After a let-in the phone takes the visitor's photo when the estate asks for it, and the car plate by camera: the text is read on the phone, then confirmed with Yes or No. A small menu holds Sync and End shift. Nothing else: no counts beyond who is inside, no rota, no night list.
 
 **The CSO is usually on the gate.** Often the CSO is the guard in charge of the shift, or the guard on duty. The CSO view keeps the guard's three home buttons as its first screen, and everything else is a tap away, never a desk-style dashboard. When the CSO admits someone on their own decision while also being the one at the gate, nobody else saw it happen. The entry is flagged **decided alone**, the home's "Not you? Reply NO" text is the second pair of eyes, and the Exco sees how often it happens.
 

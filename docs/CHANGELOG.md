@@ -2,6 +2,16 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 14 November 2026: step 3, the gate phone redesigned to the handoff
+
+- **Home:** the same three big buttons, always in the same place (Visitor has code, Phone call, Visitor leaving), Emergency numbers below, a network chip that says the phone still works offline.
+- **Start shift:** tap your face, then the 6-digit PIN; the selfie is taken by itself. Riders and the CSO start the same way.
+- **Phone call:** caller ID suggests the home; call the home back, say the visitor's name (voice clip), "Did they say yes?". The home PIN, number offers, and the CSO's decision (CSOs on shift first, "decided alone" when the CSO is also at the gate) are all Yes or No.
+- **After a let-in:** the visitor photo by the estate's rule, and the car plate by camera, read on the phone (ML Kit, offline) and confirmed.
+- **Words:** every shown or spoken line is in `lib/ui/words.dart`, read aloud; nothing speaks a PIN, code or phone number. Pairing restyled to the kit.
+- Clips and photos wait encrypted on the phone (drift schema 4) and upload after sync. Android call screening keeps the caller's number in memory only.
+- 173 phone tests; the live API integration test covers clips, photos, number offers, PIN entries and walk-ins.
+
 ## 14 November 2026: PIN resets by the security head; who is on shift, for every gate phone
 
 - **PIN reset:** `POST /v1/admin/guards/{id}/reset-pin` is now open to the security head as well as the estate admin. It is audited with who did it. On the dashboard, the security head's guard cards have a Change menu holding only Reset PIN.

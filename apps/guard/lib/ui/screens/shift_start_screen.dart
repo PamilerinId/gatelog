@@ -1,7 +1,11 @@
-import 'dart:async';
-import 'dart:io';
+/// Start shift (Guard-ShiftStart), for everyone who opens a shift on this phone: guards, the
+/// CSO and shuttle riders. Tap your face, then the PIN keypad (6 digits), then the selfie,
+/// taken by itself with no preview. Riders then pick their motorcycle (the photo is taken on
+/// that tap). The role decides the view after. A camera that fails never blocks a shift.
+library;
 
-import 'package:camera/camera.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/shift.dart';
@@ -9,259 +13,88 @@ import '../../core/estate_time.dart';
 import '../../core/pin.dart';
 import '../../core/selfie_image.dart';
 import '../../data/models.dart';
+import '../../data/shuttle.dart';
+import '../../sync/capture.dart';
 import '../app.dart';
-import '../theme.dart';
-import '../widgets.dart';
-import 'rider_start_screen.dart';
+import '../kit.dart';
+import '../parts.dart';
+import '../words.dart';
 
-/// Start a shift: pick your name, your PIN, a selfie. Shuttle riders start on their own screen,
-/// built to the handoff design (tap your face, PIN, motorcycle).
 class ShiftStartScreen extends StatefulWidget {
   const ShiftStartScreen({super.key});
   @override
   State<ShiftStartScreen> createState() => _ShiftStartScreenState();
 }
 
-enum _Step { name, pin, selfie, opening }
+enum _Step { face, pin, bike, opening }
 
 class _ShiftStartScreenState extends State<ShiftStartScreen> {
-  _Step _step = _Step.name;
+  _Step _step = _Step.face;
   Guard? _who;
-  bool _rider = false;
-
-  void _back() => setState(() {
-    _step = _Step.name;
-    _who = null;
-  });
-
-  Future<void> _open(List<int>? jpeg) async {
-    final c = GateScope.read(context);
-    setState(() => _step = _Step.opening);
-    await c.openShift(_who!.id, selfieJpeg: jpeg);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = GateScope.of(context);
-    final title = c.gateName ?? c.estateName ?? 'Gatelog Gate';
-    if (c.snapshot == null) return _Loading(title: title);
-    if (_rider && c.shuttle != null) return RiderStartScreen(onCancel: () => setState(() => _rider = false));
-    return PopScope(
-      canPop: _step == _Step.name,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _step != _Step.opening) _back();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(title),
-          leading: _step == _Step.name || _step == _Step.opening ? null : IconButton(icon: const Icon(Icons.arrow_back), tooltip: 'Back', onPressed: _back),
-          automaticallyImplyLeading: false,
-        ),
-        body: SafeArea(
-          child: switch (_step) {
-            _Step.name => _NamePicker(
-              onPick: (g) => setState(() {
-                _who = g;
-                _step = _Step.pin;
-              }),
-              onRider: () => setState(() => _rider = true),
-            ),
-            _Step.pin => _PinStep(guard: _who!, onDone: () => setState(() => _step = _Step.selfie)),
-            _Step.selfie => _SelfieStep(guard: _who!, onDone: _open),
-            _Step.opening => const Center(child: CircularProgressIndicator()),
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = GateScope.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 24),
-              if (c.syncing) const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 16),
-              Text(c.syncing ? 'Loading the estate...' : 'Could not load the estate yet.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 20)),
-              if (c.lastError != null && !c.syncing) ...[
-                const SizedBox(height: 8),
-                Text(
-                  c.lastError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 18, color: GateColors.stop),
-                ),
-              ],
-              const SizedBox(height: 24),
-              if (!c.syncing) BigButton(label: 'Try again', onPressed: c.syncNow),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NamePicker extends StatelessWidget {
-  const _NamePicker({required this.onPick, required this.onRider});
-  final void Function(Guard) onPick;
-  final VoidCallback onRider;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = GateScope.of(context);
-    // Riders start on the rider screen (only where the estate runs a shuttle).
-    final people = [for (final g in c.snapshot!.guards) if (!g.isRider) g];
-    final riders = c.shuttle != null && c.snapshot!.guards.any((g) => g.isRider);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const Text('Start your shift', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        const Text('Tap your name.', style: TextStyle(fontSize: 18)),
-        const SizedBox(height: 16),
-        if (people.isEmpty) const Text('Nobody is set up yet. Ask the estate admin to add the guards.', style: TextStyle(fontSize: 18)),
-        for (final g in people) ...[
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(72), alignment: Alignment.centerLeft),
-            onPressed: () {
-              if (!g.consent) {
-                showDialog<void>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text(g.name),
-                    content: const Text('Ask the estate admin to record your consent form first.', style: TextStyle(fontSize: 19)),
-                    actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-                  ),
-                );
-                return;
-              }
-              onPick(g);
-            },
-            child: Row(
-              children: [
-                Icon(g.isCso ? Icons.shield_outlined : Icons.badge_outlined, size: 30, color: g.consent ? GateColors.navy : GateColors.line),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(g.name, style: TextStyle(fontSize: 22, color: g.consent ? GateColors.ink : Colors.black54)),
-                      if (g.isCso || !g.consent)
-                        Wrap(
-                          spacing: 6,
-                          children: [
-                            if (g.isCso) const _Tag('CSO'),
-                            if (!g.consent) const _Tag('No consent form', color: GateColors.warn),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (riders) ...[
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: GateColors.ink, minimumSize: const Size.fromHeight(72)),
-            icon: const Icon(Icons.two_wheeler, size: 30),
-            label: const Text('Shuttle rider'),
-            onPressed: onRider,
-          ),
-          const SizedBox(height: 12),
-        ],
-        const SizedBox(height: 8),
-        const Text('Not on the list? Ask the CSO.', style: TextStyle(fontSize: 17, color: Colors.black87)),
-      ],
-    );
-  }
-}
-
-class _Tag extends StatelessWidget {
-  const _Tag(this.text, {this.color = GateColors.navy});
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(top: 4),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(
-      border: Border.all(color: color, width: 1.5),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Text(
-      text,
-      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color),
-    ),
-  );
-}
-
-/// Enter the PIN, or set one (twice) the first time or after an admin reset.
-class _PinStep extends StatefulWidget {
-  const _PinStep({required this.guard, required this.onDone});
-  final Guard guard;
-  final VoidCallback onDone;
-
-  @override
-  State<_PinStep> createState() => _PinStepState();
-}
-
-class _PinStepState extends State<_PinStep> {
   String _digits = '';
-  String? _first; // setting a PIN: the first entry, waiting for the second
-  String? _message;
+  String? _first; // setting a PIN: the first entry
+  String? _status;
   bool _error = false;
   bool _busy = false;
+  Future<GateCamera?>? _cam;
   Timer? _tick;
 
   @override
   void initState() {
     super.initState();
-    // Refresh the lockout countdown.
     _tick = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});
     });
+    say(M.tapYourFace);
   }
 
   @override
   void dispose() {
     _tick?.cancel();
+    _closeCamera();
     super.dispose();
   }
 
-  Future<void> _press(String d) async {
-    if (_busy || _digits.length >= pinLength) return;
-    setState(() {
-      _digits += d;
-      _error = false;
-    });
-    if (_digits.length == pinLength) await _complete(_digits);
+  void _closeCamera() {
+    final cam = _cam;
+    _cam = null;
+    cam?.then((c) => c?.dispose());
   }
 
-  Future<void> _complete(String pin) async {
+  void _face(Guard g) {
+    if (!g.consent) {
+      setState(() => _status = tr(M.consentFirst));
+      say(M.consentFirst);
+      return;
+    }
     final c = GateScope.read(context);
-    final step = c.pinStepFor(widget.guard);
-    if (step == PinStep.setPin) {
+    final step = c.pinStepFor(g);
+    setState(() {
+      _who = g;
+      _step = _Step.pin;
+      _digits = '';
+      _first = null;
+      _error = false;
+      _status = null;
+    });
+    // The front camera warms up while the PIN is typed; the photo is taken when it is right.
+    _closeCamera();
+    _cam = openCamera(front: true);
+    say(step == PinStep.setPin ? M.choosePinSay : M.yourPin);
+  }
+
+  Future<void> _go() async {
+    final c = GateScope.read(context);
+    final g = _who!;
+    if (_digits.length != pinLength || _busy) return;
+    final pin = _digits;
+    if (c.pinStepFor(g) == PinStep.setPin) {
       if (_first == null) {
         setState(() {
           _first = pin;
           _digits = '';
-          _message = null;
         });
+        say(M.samePinAgain);
         return;
       }
       if (_first != pin) {
@@ -269,19 +102,18 @@ class _PinStepState extends State<_PinStep> {
           _first = null;
           _digits = '';
           _error = true;
-          _message = 'The two PINs were different. Start again.';
+          _status = tr(M.notSame);
         });
+        say(M.notSame);
         return;
       }
       setState(() => _busy = true);
-      await c.setGuardPin(widget.guard.id, pin);
-      if (!mounted) return;
-      setState(() => _busy = false);
-      widget.onDone();
+      await c.setGuardPin(g.id, pin);
+      await _pinOk(g);
       return;
     }
     setState(() => _busy = true);
-    final r = await c.checkGuardPin(widget.guard.id, pin);
+    final r = await c.checkGuardPin(g.id, pin);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -289,183 +121,327 @@ class _PinStepState extends State<_PinStep> {
     });
     switch (r) {
       case PinOk():
-        widget.onDone();
-      case PinWrong(:final triesLeft):
+        await _pinOk(g);
+      case PinWrong():
         setState(() {
           _error = true;
-          _message = 'Wrong PIN. $triesLeft ${triesLeft == 1 ? 'try' : 'tries'} left.';
+          _status = tr(M.wrongPin);
         });
+        say(M.wrongPin);
       case PinLocked():
-        setState(() {
-          _error = true;
-          _message = null;
-        });
+        say(M.lockedSay);
+        setState(() {});
     }
+  }
+
+  Future<void> _pinOk(Guard g) async {
+    if (!mounted) return;
+    final c = GateScope.read(context);
+    if (g.isRider && c.shuttle != null) {
+      setState(() {
+        _busy = false;
+        _step = _Step.bike;
+        _status = null;
+      });
+      say(M.whichMotorcycle);
+      return;
+    }
+    await _open(null);
+  }
+
+  /// The selfie, with no preview, then the shift. No camera, or a failed photo: no selfie.
+  Future<void> _open(ShuttleBike? bike) async {
+    final c = GateScope.read(context);
+    setState(() => _step = _Step.opening);
+    List<int>? jpeg;
+    final cam = await _cam;
+    _cam = null;
+    if (cam != null) {
+      final shot = await cam.take();
+      await cam.dispose();
+      if (shot != null) {
+        jpeg = await shrinkSelfie(shot.raw);
+        await shot.discard();
+      }
+    }
+    await c.openShift(_who!.id, selfieJpeg: jpeg, shuttleId: bike?.id);
+    if (bike == null) {
+      say(M.shiftStarted);
+    } else {
+      say(M.shiftStartedOn, {'bike': bike.label});
+    }
+  }
+
+  void _back() {
+    if (_step == _Step.opening || _step == _Step.face) return;
+    _closeCamera();
+    setState(() {
+      _step = _Step.face;
+      _who = null;
+      _digits = '';
+      _status = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final c = GateScope.of(context);
-    final step = c.pinStepFor(widget.guard);
-    final locked = c.lockedUntil(widget.guard.id);
-    final heading = switch (step) {
-      PinStep.setPin => _first == null ? 'Choose a 6-digit PIN' : 'Enter the same PIN again',
-      PinStep.locked => 'Too many wrong tries',
-      _ => 'Enter your PIN',
-    };
-    final note = switch (step) {
-      PinStep.setPin => 'Only you will know it. If you forget it, the estate admin can reset it.',
-      PinStep.locked => 'Try again at ${hhmm(c.time.of(locked!))}.',
-      _ => null,
-    };
+    final label = c.gateName ?? c.estateName ?? 'Gatelog';
+    if (c.snapshot == null) return _Loading(label: label);
+    final Widget body;
+    String aloud;
+    switch (_step) {
+      case _Step.face:
+        aloud = tr(M.tapYourFace);
+        body = _faces(context);
+      case _Step.pin:
+        final g = _who!;
+        final step = c.pinStepFor(g);
+        final heading = step == PinStep.setPin ? (_first == null ? tr(M.choosePin) : tr(M.samePinAgain)) : tr(M.yourPin);
+        aloud = '${g.name}. $heading.';
+        body = _pin(context, g, heading);
+      case _Step.bike:
+        aloud = tr(M.whichMotorcycle);
+        body = _bikes(context);
+      case _Step.opening:
+        aloud = tr(M.startingShift);
+        body = Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Headline(tr(M.startingShift), center: true),
+          ],
+        );
+    }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: KitScaffold(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (_step == _Step.pin || _step == _Step.bike) ...[
+                  RoundButton(icon: Icons.arrow_back, label: tr(M.back), onTap: _back),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(child: KitTopBar(label: label, sayAloud: aloud, back: false)),
+              ],
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _faces(BuildContext context) {
+    final c = GateScope.of(context);
+    final p = Palette.of(context);
+    final people = c.snapshot!.guards.where((g) => !g.isRider || c.shuttle != null).toList();
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        Headline(tr(M.tapYourFace)),
+        if (_status != null)
+          Text(
+            _status!,
+            style: TextStyle(fontFamily: inter, fontSize: 17, fontWeight: FontWeight.w700, color: p.warnText),
+          ),
+        if (people.isEmpty) Text(tr(M.nobodySetUp), style: mutedStyle(context, 18)),
+        const SizedBox(height: 8),
+        Expanded(
+          child: FaceGrid(
             children: [
-              Text(widget.guard.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-              Text(heading, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-              if (note != null) Text(note, style: const TextStyle(fontSize: 17)),
-              if (_message != null && step != PinStep.locked)
-                Text(
-                  _message!,
-                  style: const TextStyle(fontSize: 18, color: GateColors.stop, fontWeight: FontWeight.w700),
+              for (final g in people)
+                FaceTile(
+                  name: g.name,
+                  tag: g.isCso ? tr(M.roleCso) : (g.isRider ? tr(M.roleRider) : null),
+                  dim: !g.consent,
+                  onTap: () => _face(g),
                 ),
-              const SizedBox(height: 12),
-              CodeBoxes(digits: _digits, obscure: true, error: _error),
-              SizedBox(height: 28, child: _busy ? const Center(child: LinearProgressIndicator()) : null),
             ],
           ),
         ),
+        Row(
+          children: [
+            Icon(Icons.photo_camera_outlined, color: p.muted, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr(M.photoWhenStart), style: mutedStyle(context, 14))),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(tr(M.notOnList), style: mutedStyle(context, 14)),
+      ],
+    );
+  }
+
+  Widget _pin(BuildContext context, Guard g, String heading) {
+    final c = GateScope.of(context);
+    final p = Palette.of(context);
+    final locked = c.lockedUntil(g.id);
+    final status = locked != null ? tr(M.lockedUntil, {'time': hhmm(c.time.of(locked))}) : _status;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final keyHeight = ((box.maxHeight - 250) / 4 - 10).clamp(48.0, 70.0);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Avatar(size: 48, onSurface: false),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(g.name, style: const TextStyle(fontFamily: inter, fontSize: 20, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            Headline(heading),
+            Dots(filled: _digits.length, length: pinLength, error: _error),
+            SizedBox(
+              height: 32,
+              child: Center(
+                child: status == null
+                    ? (_busy ? LinearProgressIndicator(color: p.text, backgroundColor: p.surface) : null)
+                    : Text(
+                        status,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontFamily: inter, fontSize: 16, fontWeight: FontWeight.w700, color: locked != null ? p.warnText : p.noText),
+                      ),
+              ),
+            ),
+            const Spacer(),
+            KitKeypad(
+              enabled: !_busy && locked == null,
+              keyHeight: keyHeight,
+              onDigit: (d) {
+                if (_digits.length >= pinLength) return;
+                setState(() {
+                  _digits += d;
+                  _error = false;
+                  _status = null;
+                });
+                if (_digits.length == pinLength) _go();
+              },
+              onClear: () => setState(() => _digits = ''),
+              onGo: _go,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.photo_camera_outlined, color: p.muted, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(tr(M.photoWhenStart), style: mutedStyle(context, 13))),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _bikes(BuildContext context) {
+    final c = GateScope.of(context);
+    final p = Palette.of(context);
+    final bikes = c.shuttle?.shuttles ?? const <ShuttleBike>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Headline(tr(M.whichMotorcycle)),
+        const SizedBox(height: 4),
         Expanded(
-          child: Keypad(
-            enabled: !_busy && step != PinStep.locked,
-            onDigit: _press,
-            onBack: () => setState(() => _digits = _digits.isEmpty ? '' : _digits.substring(0, _digits.length - 1)),
-            onClear: () => setState(() => _digits = ''),
+          child: ListView(
+            children: [
+              for (final b in bikes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Semantics(
+                    button: true,
+                    label: '${b.label} ${b.plate ?? ''}',
+                    excludeSemantics: true,
+                    child: Material(
+                      color: p.surface,
+                      borderRadius: BorderRadius.circular(28),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(28),
+                        onTap: () => _open(b),
+                        child: SizedBox(
+                          height: 120,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 22),
+                              const Icon(Icons.two_wheeler, size: 56),
+                              const SizedBox(width: 18),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(b.label, style: monoStyle(context, 40)),
+                                    if (b.plate != null && b.plate!.isNotEmpty)
+                                      Text(b.plate!.toUpperCase(), style: monoStyle(context, 15, color: p.muted, weight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (bikes.isEmpty)
+                BigTile(label: tr(M.startWithoutBike), sub: tr(M.noBikeSetUp), icon: Icons.login, primary: true, onTap: () => _open(null)),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: p.muted, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr(M.estateSeesShuttle), style: mutedStyle(context, 14))),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(Icons.photo_camera_outlined, color: p.muted, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr(M.photoWhenStart), style: mutedStyle(context, 14))),
+          ],
+        ),
       ],
     );
   }
 }
 
-/// One front-camera photo for the shift record. Never shown on the phone, kept encrypted,
-/// uploaded and deleted. If the camera fails the shift starts anyway, marked "no selfie".
-class _SelfieStep extends StatefulWidget {
-  const _SelfieStep({required this.guard, required this.onDone});
-  final Guard guard;
-  final Future<void> Function(List<int>? jpeg) onDone;
-
-  @override
-  State<_SelfieStep> createState() => _SelfieStepState();
-}
-
-class _SelfieStepState extends State<_SelfieStep> {
-  CameraController? _cam;
-  bool _failed = false;
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _start();
-  }
-
-  Future<void> _start() async {
-    try {
-      final cams = await availableCameras().timeout(const Duration(seconds: 8));
-      if (cams.isEmpty) throw StateError('no camera');
-      final front = cams.firstWhere((c) => c.lensDirection == CameraLensDirection.front, orElse: () => cams.first);
-      final cam = CameraController(front, ResolutionPreset.medium, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
-      await cam.initialize().timeout(const Duration(seconds: 8));
-      if (!mounted) {
-        await cam.dispose();
-        return;
-      }
-      setState(() => _cam = cam);
-    } catch (e) {
-      debugPrint('camera unavailable: ${e.runtimeType}');
-      if (mounted) setState(() => _failed = true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _cam?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _take() async {
-    final cam = _cam;
-    if (cam == null || _busy) return;
-    setState(() => _busy = true);
-    List<int>? jpeg;
-    try {
-      final shot = await cam.takePicture();
-      final raw = await shot.readAsBytes();
-      // The camera writes to the app's cache; remove the full-size original at once.
-      try {
-        await File(shot.path).delete();
-      } catch (_) {}
-      jpeg = await shrinkSelfie(raw);
-    } catch (e) {
-      debugPrint('selfie failed: ${e.runtimeType}');
-    }
-    await widget.onDone(jpeg);
-  }
+class _Loading extends StatelessWidget {
+  const _Loading({required this.label});
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final cam = _cam;
-    const heading = [
-      Text('Photo for the shift record', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-    ];
-    if (_failed) {
-      return ListView(padding: const EdgeInsets.all(16), children: [
-        Text(widget.guard.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-        ...heading,
-        const SizedBox(height: 12),
-        BigButton(label: 'Start shift', icon: Icons.login, color: GateColors.navy, onPressed: () => widget.onDone(null)),
-        const SizedBox(height: 12),
-        Verdict(
-          title: 'The camera is not working',
-          color: GateColors.warn,
-          wash: GateColors.warnWash,
-          icon: Icons.no_photography_outlined,
-          children: const [Text('The shift starts without a photo and is marked "no selfie".', style: TextStyle(fontSize: 18))],
-        ),
-      ]);
-    }
-    // Scrolls on short screens; the preview gets what is left, never less than 180.
-    return LayoutBuilder(
-      builder: (context, box) => ListView(padding: const EdgeInsets.all(16), children: [
-        Text(widget.guard.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-        ...heading,
-        const Text('Look at the screen. The estate keeps this photo for 30 days to show who was on duty. It is never shown on this phone.',
-            style: TextStyle(fontSize: 17)),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: (box.maxHeight - 360).clamp(180.0, 520.0),
-          child: cam == null
-              ? const Center(child: CircularProgressIndicator())
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Center(child: AspectRatio(aspectRatio: 1 / cam.value.aspectRatio, child: CameraPreview(cam))),
-                ),
-        ),
-        const SizedBox(height: 12),
-        BigButton(
-          label: _busy ? 'Saving...' : 'Take photo and start',
-          icon: Icons.photo_camera,
-          color: GateColors.navy,
-          onPressed: cam == null || _busy ? null : _take,
-        ),
-        TextButton(onPressed: _busy ? null : () => widget.onDone(null), child: const Text('Camera not working? Start without a photo')),
-      ]),
+    final c = GateScope.of(context);
+    final p = Palette.of(context);
+    return KitScaffold(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          KitTopBar(label: label, back: false),
+          const Spacer(),
+          if (c.syncing) const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+          Headline(c.syncing ? tr(M.loadingEstate) : tr(M.couldNotLoad), center: true),
+          if (c.lastError != null && !c.syncing)
+            Text(c.lastError!, textAlign: TextAlign.center, style: TextStyle(fontFamily: inter, fontSize: 17, color: p.noText)),
+          const Spacer(),
+          if (!c.syncing) BigTile(label: tr(M.tryAgain), icon: Icons.sync, primary: true, height: 96, onTap: c.syncNow),
+        ],
+      ),
     );
   }
 }

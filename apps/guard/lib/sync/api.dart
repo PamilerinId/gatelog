@@ -77,6 +77,13 @@ abstract class GateApi {
   /// synced, 413 too large, 415 not a JPEG.
   Future<void> uploadSelfie(String token, String shiftId, List<int> jpeg);
 
+  /// `PUT /v1/device/clips/{id}`: a visitor's name, said. Throws [ApiException] 400 empty,
+  /// 413 too large, 415 not audio.
+  Future<void> uploadClip(String token, String clipId, List<int> audio, String contentType);
+
+  /// `PUT /v1/device/photos/{id}?kind=visitor|plate`. Throws [ApiException] 413 or 415.
+  Future<void> uploadPhoto(String token, String photoId, String kind, List<int> jpeg);
+
   /// `GET /v1/device/cso` for the CSO's open shift. Throws [ApiException] 403 otherwise.
   Future<Map<String, dynamic>> fetchCso(String token, String shiftId);
 
@@ -170,6 +177,24 @@ class HttpGateApi implements GateApi {
   Future<void> uploadSelfie(String token, String shiftId, List<int> jpeg) async {
     await _send(() => _client.put(
           _u('/v1/device/shifts/$shiftId/selfie'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg'},
+          body: jpeg,
+        ));
+  }
+
+  @override
+  Future<void> uploadClip(String token, String clipId, List<int> audio, String contentType) async {
+    await _send(() => _client.put(
+          _u('/v1/device/clips/$clipId'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': contentType},
+          body: audio,
+        ));
+  }
+
+  @override
+  Future<void> uploadPhoto(String token, String photoId, String kind, List<int> jpeg) async {
+    await _send(() => _client.put(
+          _u('/v1/device/photos/$photoId?kind=$kind'),
           headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg'},
           body: jpeg,
         ));

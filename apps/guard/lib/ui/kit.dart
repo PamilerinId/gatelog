@@ -1,10 +1,10 @@
-/// The handoff design (`docs/gatelog-handoff/design`) for the screens built to its rules: the
-/// rider view, rider shift start, "Shuttle to the home", the CSO's Shuttle tab and Issue a card.
+/// The handoff design (`docs/gatelog-handoff/design`), for every screen of the gate phone: shift
+/// start, the guard's home and its three jobs, the CSO's extras, and the shuttle.
 ///
 /// One job per screen, big icons and big words, Yes or No instead of lists, no typing, every
 /// result read aloud. Charcoal with a fabric twill at night, sterile white by day, following the
-/// estate's time of day. Inter for words, JetBrains Mono for data. The older guard and CSO
-/// screens keep `theme.dart` until their redesign is approved.
+/// estate's time of day. Inter for words, JetBrains Mono for data. The words themselves are in
+/// `words.dart`.
 library;
 
 import 'package:flutter/material.dart';
@@ -360,11 +360,14 @@ class YesNo extends StatelessWidget {
 
 /// A 56 px pill with a thin line (secondary actions at the bottom).
 class Pill extends StatelessWidget {
-  const Pill({super.key, required this.label, required this.onTap, this.icon, this.color});
+  const Pill({super.key, required this.label, required this.onTap, this.icon, this.color, this.iconColor});
   final String label;
   final IconData? icon;
   final VoidCallback? onTap;
   final Color? color;
+
+  /// The icon alone in a state colour (Emergency numbers: the red triangle).
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +387,7 @@ class Pill extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null) ...[Icon(icon, size: 24, color: fg), const SizedBox(width: 8)],
+                if (icon != null) ...[Icon(icon, size: 24, color: iconColor ?? fg), const SizedBox(width: 8)],
                 Flexible(
                   child: Text(
                     label,
@@ -500,7 +503,9 @@ class KitKeypad extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    Widget key(String label, VoidCallback? tap, {String? semantics, bool go = false}) => Expanded(
+    // Clear and go are drawn as icons: the bundled Inter and JetBrains Mono have no arrow glyph,
+    // and a guard must never see an empty box on the key that starts their shift.
+    Widget key(String label, VoidCallback? tap, {String? semantics, bool go = false, IconData? icon}) => Expanded(
       child: Padding(
         padding: const EdgeInsets.all(5),
         child: Semantics(
@@ -516,10 +521,12 @@ class KitKeypad extends StatelessWidget {
               child: SizedBox(
                 height: keyHeight,
                 child: Center(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontFamily: mono, fontSize: 28, fontWeight: FontWeight.w500, color: go ? p.onAccent : p.text),
-                  ),
+                  child: icon != null
+                      ? Icon(icon, size: 32, color: go ? p.onAccent : p.text)
+                      : Text(
+                          label,
+                          style: TextStyle(fontFamily: mono, fontSize: 28, fontWeight: FontWeight.w500, color: go ? p.onAccent : p.text),
+                        ),
                 ),
               ),
             ),
@@ -538,9 +545,9 @@ class KitKeypad extends StatelessWidget {
           Row(children: [for (final d in r) key(d, () => onDigit(d))]),
         Row(
           children: [
-            key('×', onClear, semantics: 'Clear'),
+            key('×', onClear, semantics: 'Clear', icon: Icons.close_rounded),
             key('0', () => onDigit('0')),
-            key('→', onGo, semantics: 'Go on', go: true),
+            key('→', onGo, semantics: 'Go on', go: true, icon: Icons.arrow_forward_rounded),
           ],
         ),
       ],

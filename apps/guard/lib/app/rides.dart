@@ -116,24 +116,6 @@ class RideView {
   }
 }
 
-/// Words for a ride's kind, as the rider reads them.
-String rideKindLabel(String kind) => switch (kind) {
-      RideKind.delivery => 'Parcel',
-      RideKind.guest => 'Guest',
-      _ => 'Resident',
-    };
-
-/// "Waiting 12 min", "Waiting 1 h 5 min", "Wanted at 16:00" (with [hhmm] for future times).
-String waitLabel(DateTime? wantedAt, DateTime now, String Function(DateTime) hhmm) {
-  if (wantedAt == null) return 'Waiting';
-  final d = now.difference(wantedAt);
-  if (d.inMinutes < 0) return 'Wanted at ${hhmm(wantedAt)}';
-  final m = d.inMinutes;
-  if (m < 1) return 'Just now';
-  if (m < 60) return 'Waiting $m min';
-  return 'Waiting ${m ~/ 60} h ${m % 60} min';
-}
-
 /// The stops a ride can use: the home first, then gates, then estate places.
 List<RideStop> rideStops(StateSnapshot snap, {Home? home}) => [
       if (home != null) RideStop(kind: 'home', ref: home.id, label: home.displayAddress),

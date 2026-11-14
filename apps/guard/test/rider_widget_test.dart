@@ -9,7 +9,7 @@ import 'package:gatelog_guard/data/store.dart';
 import 'package:gatelog_guard/sync/api.dart';
 import 'package:gatelog_guard/ui/app.dart';
 import 'package:gatelog_guard/ui/kit.dart';
-import 'package:gatelog_guard/ui/screens/rider_start_screen.dart';
+import 'package:gatelog_guard/sync/capture.dart';
 import 'package:gatelog_guard/ui/widgets.dart';
 
 import 'support.dart';
@@ -23,7 +23,7 @@ void main() {
     spoken.clear();
     dial = (n) async => true;
     speak = (s) async => spoken.add(s);
-    openFrontCamera = () async => null; // no camera in a test: the shift starts without a photo
+    openCamera = ({required bool front}) async => null; // no camera in a test: the shift starts without a photo
   });
 
   Future<(GateController, GateStore)> boot(WidgetTester tester, FakeApi api, Size size) async {
@@ -112,16 +112,15 @@ void main() {
       };
       final (c, store) = await boot(tester, api, size);
 
-      // Riders start on their own screen: tap your face, PIN, motorcycle.
-      expect(find.text('Kunle Rider'), findsNothing, reason: 'not in the guards list');
-      await act(tester, find.text('Shuttle rider'));
+      // Riders start like everyone: tap your face (marked RIDER), PIN, then the motorcycle.
       expect(find.text('Tap your face'), findsOneWidget);
+      expect(find.text('RIDER'), findsNWidgets(2));
       expect(find.text('Photo is taken when you start'), findsOneWidget);
       await act(tester, find.text('Kunle Rider'));
       expect(find.text('Your PIN'), findsOneWidget);
       await tapDigits(tester, '111111');
       expect(find.text('Wrong PIN, try again'), findsOneWidget);
-      expect(spoken.last, 'Wrong PIN, try again.');
+      expect(spoken.last, 'Wrong PIN, try again');
       await tapDigits(tester, '482913');
       expect(find.text('Which motorcycle?'), findsOneWidget);
       expect(find.text('S2'), findsOneWidget);
@@ -176,7 +175,7 @@ void main() {
       expect(find.text('HOME PIN'), findsOneWidget);
       await tapDigits(tester, '0000');
       expect(find.text('Wrong PIN, try again'), findsOneWidget);
-      expect(spoken.last, 'Wrong PIN, try again.');
+      expect(spoken.last, 'Wrong PIN, try again');
       await tapDigits(tester, '4821');
       expect(find.text('Is it Mrs Adeyemi?'), findsOneWidget);
       await act(tester, yes());
@@ -224,7 +223,7 @@ void main() {
       await act(tester, yes());
       expect(find.text('Is Ade Rider taking over?'), findsOneWidget);
       await act(tester, no());
-      expect(find.text('Start your shift'), findsOneWidget);
+      expect(find.text('Tap your face'), findsOneWidget);
       expect(c.shift, isNull);
 
       expect(tester.takeException(), isNull);
@@ -237,11 +236,10 @@ void main() {
     final (c, store) = await boot(tester, api, const Size(640, 1136));
     for (final night in [true, false]) {
       Palette.forceNight = night;
-      await act(tester, find.text('Shuttle rider'));
+      await tester.pumpWidget(GuardApp(key: ValueKey(night), controller: c));
+      await tester.pumpAndSettle();
       final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).last);
       expect(scaffold.backgroundColor, night ? const Color(0xFF111111) : const Color(0xFFF2F2F0));
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
     }
     Palette.forceNight = null;
     expect(Palette.at(DateTime(2026, 11, 8, 21)).night, isTrue);
@@ -254,9 +252,12 @@ void main() {
       ..state = sampleState(shuttle: sampleShuttle())
       ..syncError = NetworkException('offline');
     final (c, store) = await boot(tester, api, const Size(640, 1136));
-    await tester.runAsync(() => c.openShift('gu1'));
-    await tester.pump();
-    expect(find.text('Shuttle to the home'), findsNothing, reason: 'not on the keypad screen');
+    await tester.runAsync(() async {
+      await c.openShift('gu1');
+      await c.idle(); // the sync it starts runs in real time: let it end before the screens touch the database
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Shuttle to the home'), findsNothing, reason: 'in the menu, not on the home');
 
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
@@ -267,29 +268,26 @@ void main() {
     expect(find.text('Book the shuttle?'), findsOneWidget);
     await act(tester, yes());
     expect(spoken, contains('Shuttle booked.'));
-    expect(find.text('Shuttle booked: parcel to 14B Adeniyi Close, Block C'), findsOneWidget);
 
-    // No code, confirmed, let in: then the shuttle, with the guest's name.
-    await act(tester, find.text('No code'));
-    await tester.enterText(find.byType(TextField), 'adey');
-    await tester.pump();
-    await act(tester, find.text('14B Adeniyi Close, Block C'));
-    await act(tester, find.text('Call'));
-    await act(tester, find.text('Confirmed'));
-    await tester.enterText(find.byType(TextField), 'Tunde');
-    await act(tester, find.text('Next'));
-    await act(tester, find.text('They are here: let them in'));
-    expect(find.text('Let in: Tunde'), findsOneWidget);
+    // Phone call, the home said yes, here now, let in: then the shuttle for the guest.
+    await act(tester, find.text('Phone call'));
+    await act(tester, find.text('14B'));
+    await act(tester, find.text('Call back').first);
+    await act(tester, yes()); // did they say yes
+    await act(tester, yes()); // here now
+    await act(tester, no()); // car?
+    expect(find.text('Let in'), findsOneWidget);
     await act(tester, find.text('Shuttle to the home'));
-    expect(find.text('Tunde'), findsOneWidget);
+    await act(tester, find.text('Guest'));
     await act(tester, yes());
-    expect(find.text('No code'), findsOneWidget, reason: 'back on the keypad');
+    await act(tester, find.text('Done'));
+    expect(find.text('Visitor has code'), findsOneWidget, reason: 'back home');
 
     final rides = [
       for (final i in (await tester.runAsync(() => store.outbox()))!)
         if (i.kind == OutboxKind.ride) i.payload,
     ];
-    expect(rides.map((r) => (r['kind'], r['passenger'], r['source'])), [('delivery', null, 'gate'), ('guest', 'Tunde', 'gate')]);
+    expect(rides.map((r) => (r['kind'], r['passenger'], r['source'])), [('delivery', null, 'gate'), ('guest', null, 'gate')]);
     expect(tester.takeException(), isNull);
     await finish(tester, c, store);
   });
@@ -330,13 +328,17 @@ void main() {
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
-    expect(find.text('Shuttle rides waiting over 10 minutes (1)', skipOffstage: false), findsOneWidget);
+    // The CSO starts on the same home as a guard; the extras are one tap away.
+    expect(find.text('Visitor has code'), findsOneWidget);
+    await act(tester, find.byTooltip('CSO'));
+    expect(find.text('SHUTTLE RIDES WAITING', skipOffstage: false), findsOneWidget);
 
-    await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.byIcon(Icons.two_wheeler)));
-    await tester.pumpAndSettle();
+    await act(tester, find.text('Shuttle'));
     expect(find.text('WAITING OVER 10 MIN · 1'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Taken by Kunle Rider'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('OPEN RIDES · 2', skipOffstage: false), findsOneWidget);
-    expect(find.text('Taken by Kunle Rider', skipOffstage: false), findsOneWidget);
+    expect(find.text('Taken by Kunle Rider'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Book a ride'), -200, scrollable: find.byType(Scrollable).first);
 
     await act(tester, find.text('Book a ride'));
     await act(tester, find.text('14B'));

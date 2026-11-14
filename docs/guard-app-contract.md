@@ -33,7 +33,7 @@ response replaces the local copy of each section:
 
 | Key | Use |
 |---|---|
-| `estate` | name, timezone, `walk_in_policy` (show it when a callback fails or a guest has no code), current `key_version` |
+| `estate` | name, timezone, `walk_in_policy` (kept on the phone; the gate phone does not show it today: a failed callback goes to the CSO), current `key_version`, `visitor_photos` |
 | `device` | this phone's id and gate |
 | `keys[]` | `{version, key_b64}`: every HMAC key an open visit still needs. Keep them only in the encrypted store |
 | `gates[]` | `{id, name}` |
@@ -42,12 +42,20 @@ response replaces the local copy of each section:
 | `visits[]` | expected and open visits: `{id, home_id, resident_id, guest_name, window_start, window_end (unix s), key_version, code_issued, source, state, expected_until, entry_id, entered_at}` |
 | `rollup` | tonight's list, or null: `{id, for_date, items[{id, visit_id, guest_name, home_id, address, expected_until, checked_at, check_result}]}` |
 | `directory[]` | `{id, category, name, number, verified_at, reported_not_working}`, already ordered |
+| `on_duty[]` | `{guard_id, gate_id, since}` for every open shift in the estate, at any gate. Names and roles come from `guards[]` by `guard_id`; match by id, never by name. An older server may leave it out (or send null): treat that as nobody on shift |
+
+**Who is on shift.** The phone keeps `on_duty` with the rest of the state, so it works offline.
+When a guard picks the CSO who decided a walk-in, the CSOs on shift come first, tagged ON SHIFT.
+A person counts as on shift when `on_duty` lists them and their `since` is under 14 hours old (a
+shift ends itself after 14 hours, even if the phone has been offline since), or when their shift
+is open on this phone and has not synced yet.
 
 ## Shifts: PIN and selfie
 
-Nothing can be recorded without an open shift. The start screen lists `guards[]` by name.
+Nothing can be recorded without an open shift. The start screen shows `guards[]` as faces with
+names ("Tap your face"); the CSO and riders are tagged.
 
-1. **Pick your name.** A guard with `consent: false` cannot start: show "Ask the estate admin to
+1. **Tap your face.** A guard with `consent: false` cannot start: show "Ask the estate admin to
    record your consent form first." A guard who is not in the list asks the CSO.
 2. **PIN.** If `pin_hash` is null (first shift, or the admin reset it), the guard chooses a PIN
    (6 digits, entered twice). The phone hashes it and queues a `pins` record; the PIN itself
@@ -75,7 +83,8 @@ Nothing can be recorded without an open shift. The start screen lists `guards[]`
    Delete the local copy once uploaded. Never show selfies in the app.
 
 Every record made during the shift carries `shift_id` and `guard_id`. A guard's role decides the
-view: `guard` gets the guard view, `cso` gets the CSO view (below).
+view: `guard` and `cso` both get the guard view (the CSO's has the CSO extras one tap away, below);
+`rider` gets the rider view.
 
 **Ending.** End shift asks who is taking over (anyone in `guards[]` with consent), or "nobody".
 Queue the same shift record again with `ended_at`, `end_reason: handover|ended`, `handed_to`, and
@@ -131,9 +140,13 @@ are ISO 8601 with offset; send the phone's time, the server clamps anything more
 minutes in the future. Send a shift before the records made during it (the server orders them
 within one batch anyway).
 
-**Plates** are optional on every entry and exit, typed by the guard. Send them as typed; the
-server normalises (`lnd 123-ab` → `LND123AB`). When the typed plate matches one of the home's
-`vehicles`, show it as a match.
+**Plates** are optional on every entry and exit. Nobody types them: after "Let them in" the phone
+asks "Car?" and, on Yes, the guard photographs the plate. The text is read on the phone (on-device
+text recognition, no network) and the guard confirms it: "Is this the plate?" Yes sends it as
+`plate`; No, or nothing readable, sends no `plate`, and the photo is kept either way
+(`plate_photo_id`, below). The server normalises (`lnd 123-ab` → `LND123AB`). When the plate matches
+one of the home's `vehicles`, show it as a match ("Registered to 14B"). The app records no plate on
+exits today.
 
 **Walk-in decisions.** When nobody at the home can be reached, the guard or the CSO on duty
 decides. Admitted: entry `method: walk_in_admitted` with `decided_by` (a guard id, usually the
@@ -142,25 +155,37 @@ The server rejects a `walk_in_admitted` entry without both.
 
 ## The guard view
 
-The keypad is the screen. Under it, two buttons only: **No code** and **Leaving**. A small menu
-holds Emergency numbers and End shift.
+Guards may have low literacy, so the view is one job per screen, big icons and words, Yes or No
+instead of lists, no typing, and every result read aloud. The home screen is the same for the
+guard and the CSO: three big buttons, always in the same place, **Visitor has code**, **Phone
+call** and **Visitor leaving** (with how many are inside), and **Emergency numbers** below them.
+A small menu holds Sync, End shift, and Shuttle to the home where the estate runs a shuttle.
 
-**Code at the gate.** Enter 6 digits → offline match → show guest name and home address →
-Let them in (entry `method: code`, `visit_id`) or Turn away (entry `method: refused`).
+**Visitor has code.** A big keypad; 6 digits → offline match → the house number large, the guest's
+name, "Let them in?" Yes or No. Yes → the visitor's photo (per `estate.visitor_photos`), "Car?",
+the plate by camera (below) → entry `method: code`, `visit_id`. No → "Why not?" as fixed reasons
+→ entry `method: refused` with the reason. A home with `callback_required` goes straight to the
+callback. Not valid now and No match each offer **Phone call** instead.
 
-**Leaving.** Re-enter the guest's code, or tap the name in the Leaving list (visits with an entry
-and no exit, sorted by home) → exit `method: code` or `list_tap` with `entry_id`. One action,
-works offline. An exit for someone not on the list is still recorded with `guest_name` only.
+**Visitor leaving.** Big tiles of everyone inside (visits with an entry and no exit, by house) →
+tap one → "Leaving now?" Yes → exit `method: list_tap` with `entry_id`. **Has a code** opens the
+keypad → exit `method: code`. One action, works offline. A guest's own code typed on **Visitor has
+code** also offers "Leaving now?".
 
-**No code (flows A and B together).** Find the home by label or surname → the home shows any
-guest already confirmed by phone (Let in: entry `method: callback_confirmed` with that
-`visit_id`) and its residents with masked numbers → **Call** opens the native dialler (`tel:`)
-→ Confirmed / Said no / No answer (a `callbacks` record). Confirmed asks the guest's name, then:
+**Phone call (flows A and B together).** Someone rang the gate about a visitor, or a visitor with
+no code is at the gate. When the call screening service saw the caller's number and it belongs to a
+resident, the phone asks "Is it Mrs Adeyemi, 14B?" first (a hint only); otherwise the guard taps the
+street, then the house number. The home then shows any guest already confirmed by phone ("Is this
+them?" Yes: entry `method: callback_confirmed` with that `visit_id`). Then **Call back** opens the
+native dialler (`tel:`) on a registered number of the home; back from the call, the guard says the
+visitor's name (a voice clip, below) and answers "Did they say yes?" → Confirmed / Said no / No
+answer (a `callbacks` record). The other ways on are **They gave the home PIN** and **Call
+supervisor** (the CSO decides, below). On Confirmed, "Are they here now?":
 
-- **They are here: let them in** → entry `method: callback_confirmed`, no `visit_id`. The server
+- **Yes: let them in** → entry `method: callback_confirmed`, no `visit_id`. The server
   makes a visit for it, which comes back in `/state` with `entry_id` equal to the phone's entry
   id; drop the local copy when it does.
-- **Coming later: expect them** → pick the stay (about an hour = 60, a few hours = 180,
+- **No: expect them later** → "How long are they staying?" as tiles, the stay (about an hour = 60, a few hours = 180,
   overnight = next day 10:00, a date = 18:00 that day) → a `visits` record (window now until
   23:59 today, at least one hour) linked from the callback's `visit_id`.
 
@@ -169,9 +194,12 @@ the call is on file even if the guard never chooses. For "expect them", queue th
 the same callback again (same `id`, now with `visit_id`), behind the visit in the queue: the server
 answers `duplicates` and links the visit once. It never moves a link that is already set.
 
-Said no, or No answer twice → do not admit on phone authority: show `walk_in_policy`; the guard
-can turn the guest away (entry `refused` with the reason) or, if the policy allows, record the
-CSO's decision (entry `walk_in_admitted`, `decided_by`, `reason`, no `visit_id`). As with flow B,
+Said no, or No answer twice → do not admit on phone authority: the guard can call back, or call
+the supervisor. The guard never decides: **Call supervisor** → "Which CSO decided?" as faces (CSOs
+on shift first, tagged ON SHIFT, from `on_duty`) → "Why let them in?" as tiles (known to the CSO,
+described the house well, delivery or service, other: said as a voice clip) → "Let them in?" →
+entry `walk_in_admitted` with `decided_by` and `reason`, no `visit_id`; or turn away (entry
+`refused`, with `decided_by` when the CSO decided). As with flow B,
 the server makes a visit for the walk-in, which comes back in `/state` with `entry_id` equal to
 the phone's entry id, so every gate, the CSO's People tab and the night list see the guest inside.
 The walk-in visit has no resident: nobody confirmed, so nobody is messaged about it.
@@ -244,7 +272,11 @@ offer it, because an inbound caller ID is a hint, not proof.
 
 ## The CSO view
 
-Everything in the guard view, plus four tabs: **Now**, **People**, **Shifts**, **Numbers**.
+The CSO usually works the gate too, so the CSO's first screen is the guard home: the same three
+buttons and Emergency numbers, the role shown as CSO, plus a CSO button with a red count of what
+needs them (the home said NO, guests past their time, the night list, quiet gate phones, shuttle
+rides waiting). It opens the CSO extras as tabs: **Now**, **People**, **Shifts**, **Numbers**, and
+**Shuttle** where the estate runs one. Never a desk-style first screen.
 
 ```
 GET /v1/device/cso      X-Shift-Id: <the CSO's open shift on this phone>
@@ -328,8 +360,9 @@ POST /v1/device/positions   {"shift_id", "points": [{lat, lng, accuracy_m?, head
 Queue points while offline and send them in batches when the network returns (oldest first, keep
 the last 2 hours at most). Stop the moment the shift ends.
 
-**Booking at the gate (guard view).** From the menu, and on the home screen in No code after a guest
-is let in: **Shuttle to the home**. A `rides` record, `source: gate`, `kind: delivery` (with what the
+**Booking at the gate (guard view).** **Shuttle to the home**, from the menu (the house, then Parcel
+or Guest) or from the "Let in" result (that home; Parcel or Guest unless the guest's name is known),
+then "Book the shuttle?" Yes. A `rides` record, `source: gate`, `kind: delivery` (with what the
 parcel is in `passenger`) or `guest` (the guest's name), pickup the phone's gate, dropoff the home.
 
 **CSO view.** A **Shuttle** tab: open rides with their rider, rides waiting over 10 minutes (also

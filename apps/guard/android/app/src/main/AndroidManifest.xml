@@ -21,6 +21,11 @@
          still work (house code, or vouched). -->
     <uses-permission android:name="android.permission.NFC"/>
     <uses-feature android:name="android.hardware.nfc" android:required="false"/>
+    <!-- Visitors' names are said, not typed: a short voice clip (30 seconds at most), recorded only
+         while the guard holds the record button. Not required: a phone with no microphone types nothing
+         and still works. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <!-- No backups: the database holds resident phone numbers and its key lives in the Keystore. -->
     <application
         android:label="Gatelog Gate"
@@ -51,6 +56,17 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Caller ID at the gate: Android binds this service only while the app holds the
+             call-screening role (asked once, through RoleManager). It notes the incoming number in
+             memory and never blocks or changes a call. Refused, the app works the same. -->
+        <service
+            android:name=".GateCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService"/>
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

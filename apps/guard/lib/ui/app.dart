@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app/controller.dart';
-import 'screens/cso_screens.dart';
-import 'screens/guard_home.dart';
+import 'screens/home_screen.dart';
 import 'screens/pairing_screen.dart';
 import 'screens/rider_home.dart';
 import 'screens/shift_start_screen.dart';
@@ -81,7 +80,8 @@ class _Root extends StatelessWidget {
       // A new shift starts on a fresh screen stack (the key), as the person it belongs to.
       Phase.ready => KeyedSubtree(
           key: ValueKey(c.shift?.id),
-          child: c.isCso ? const CsoShell() : (c.isRider ? const RiderHome() : const GuardHome()),
+          // The guard and the CSO share the home: the CSO's extras are one tap away.
+          child: c.isRider ? const RiderHome() : const HomeScreen(),
         ),
     };
   }

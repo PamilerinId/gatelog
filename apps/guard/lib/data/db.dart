@@ -133,6 +133,29 @@ class SelfiesTable extends Table {
   Set<Column> get primaryKey => {shiftId};
 }
 
+/// Voice clips (a visitor's name, said) and photos (the visitor, the car's plate) waiting to
+/// upload. Kept in the encrypted database, never shown again, deleted once the server has them.
+@DataClassName('MediaRow')
+class MediaTable extends Table {
+  @override
+  String get tableName => 'media';
+
+  /// The clip's or photo's own UUID, named on the record (`name_clip_id`, `visitor_photo_id`...).
+  TextColumn get id => text()();
+
+  /// clip | visitor | plate
+  TextColumn get kind => text()();
+  BlobColumn get bytes => blob()();
+  TextColumn get contentType => text()();
+
+  /// The record that names it (an entry or a visit), so Leaving can play a clip back.
+  TextColumn get ref => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Positions recorded during a rider's open shift, waiting to go to `POST /v1/device/positions`.
 /// Kept 2 hours at most, sent oldest first, deleted once the server has them.
 @DataClassName('PositionRow')
@@ -197,14 +220,16 @@ class OutboxTable extends Table {
   OutboxTable,
   SelfiesTable,
   PositionsTable,
+  MediaTable,
 ])
 class GateDatabase extends _$GateDatabase {
   GateDatabase(super.e);
 
   /// 2: guard roles, PIN hashes and consent; home vehicles; selfies (shifts with PIN and selfie).
   /// 3: the estate shuttle: house code hashes on homes, the rider's position queue.
+  /// 4: voice clips and visitor and plate photos waiting to upload.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -224,6 +249,11 @@ class GateDatabase extends _$GateDatabase {
             await m.addColumn(homesTable, homesTable.houseCodeHash);
             await m.createTable(positionsTable);
             // Force a full pull so the shuttle section and the house code hashes fill in.
+            await (delete(metaTable)..where((t) => t.key.equals('etag'))).go();
+          }
+          if (from < 4) {
+            await m.createTable(mediaTable);
+            // Force a full pull so the estate's photo rule (`visitor_photos`) fills in.
             await (delete(metaTable)..where((t) => t.key.equals('etag'))).go();
           }
         },
