@@ -4,7 +4,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080
 WORKDIR /srv
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt google-cloud-secret-manager google-auth
+RUN pip install --no-cache-dir -r requirements.txt google-cloud-secret-manager google-cloud-storage google-auth
 COPY alembic.ini .
 COPY migrations ./migrations
 COPY app ./app
