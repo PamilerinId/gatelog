@@ -68,7 +68,21 @@ def main() -> int:
         print("ISOLATION CHECK FAILED: " + p, file=sys.stderr)
     if not problems:
         print(f"isolation checks passed: {APP_ROLE} cannot bypass RLS, owns nothing, is in no admin role; every estate table has RLS")
-    return 1 if problems else 0
+    if problems:
+        return 1
+
+    # The first Gatelog ops account on a fresh deployment (it creates estates). Optional; never
+    # changes an existing account. The first entry of a comma-separated list is used.
+    ops_email = (os.environ.get("BOOTSTRAP_OPS_EMAIL") or "").split(",")[0].strip().lower()
+    if ops_email:
+        with engine.begin() as c:
+            if c.execute(text("SELECT 1 FROM staff_users WHERE email = :e"), {"e": ops_email}).first():
+                print("ops account already exists")
+            else:
+                c.execute(text("INSERT INTO staff_users (id, email, name, role, active, created_at) "
+                               "VALUES (gen_random_uuid(), :e, 'Gatelog ops', 'ops', true, now())"), {"e": ops_email})
+                print(f"created the ops account (@{ops_email.split('@')[-1]})")
+    return 0
 
 
 if __name__ == "__main__":
