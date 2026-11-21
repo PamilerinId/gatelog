@@ -13,10 +13,16 @@ outbox: list[tuple[str, str, str]] = []  # development and tests
 
 def send(to: str, subject: str, body: str) -> None:
     s = get_settings()
+    allowed = s.send_allowlist
+    if allowed is not None and to.strip().lower() not in allowed[1]:
+        # Staging: never email anyone off the list. Logged by domain only, like every email.
+        outbox.append((to, subject, body))
+        log.warning("email WITHHELD (staging allowlist) to=@%s subject=%r", to.split("@")[-1], subject)
+        return
     if not s.postmark_server_token:
         outbox.append((to, subject, body))
         log.info("email to=%s subject=%r (not sent: no Postmark token)", to.split("@")[-1], subject)
-        if not s.is_production:  # local development only: lets you sign in without Postmark
+        if not s.is_deployed:  # local development only: lets you sign in without Postmark
             print(f"[dev email] {subject}", flush=True)
         return
     r = httpx.post(

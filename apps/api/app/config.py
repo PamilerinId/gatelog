@@ -58,19 +58,49 @@ class Settings(BaseSettings):
     gcs_bucket: str | None = None
     selfie_encryption_key: str = "d3YxX2Rldi1vbmx5LXNlbGZpZS1rZXktY2hhbmdlLW0="
 
+    # Staging only: the only numbers (E.164 or local, comma-separated) and emails it may send to.
+    # Anything else is withheld and logged, never sent. Staging refuses to start without both.
+    allowed_phones: str | None = None
+    allowed_emails: str | None = None
+
     @property
     def is_production(self) -> bool:
         return self.env == "production"
+
+    @property
+    def is_deployed(self) -> bool:
+        """Anything reachable from the internet (staging and production): real secrets, a
+        mandatory internal token, no API docs. Only local development relaxes these."""
+        return self.env != "development"
+
+    @property
+    def send_allowlist(self) -> tuple[frozenset[str], frozenset[str]] | None:
+        """(phones in E.164, lowercased emails) on staging; None means send to anyone."""
+        if self.env != "staging":
+            return None
+        from .phones import normalise  # here, not at import time: phones reads settings
+
+        phones_ = frozenset(normalise(p) for p in (self.allowed_phones or "").split(",") if p.strip())
+        emails_ = frozenset(e.strip().lower() for e in (self.allowed_emails or "").split(",") if e.strip())
+        return phones_, emails_
 
 
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    if s.is_production:
+    if s.is_deployed:
         defaults = Settings.model_fields
         for name in ("token_secret", "phone_encryption_key", "phone_index_key", "selfie_encryption_key"):
             if getattr(s, name) == defaults[name].default:
-                raise RuntimeError(f"{name.upper()} must be set in production")
+                raise RuntimeError(f"{name.upper()} must be set outside development")
         if s.key_store == "dev":
-            raise RuntimeError("KEY_STORE=dev is not allowed in production")
+            raise RuntimeError("KEY_STORE=dev is only allowed in development")
+        if not s.api_internal_token:
+            raise RuntimeError("API_INTERNAL_TOKEN must be set outside development")
+        if s.storage_backend != "gcs":
+            raise RuntimeError("STORAGE_BACKEND=gcs is required outside development (the disk is wiped on restart)")
+    if s.env == "staging":
+        allowed = s.send_allowlist
+        if not allowed or not allowed[0] or not allowed[1]:
+            raise RuntimeError("staging needs ALLOWED_PHONES and ALLOWED_EMAILS: it refuses to send to anyone else")
     return s

@@ -21,8 +21,15 @@ def test_rejects_non_nigerian_number():
 
 
 def test_requires_token_when_configured(monkeypatch):
+    from app.config import get_settings
+
     monkeypatch.setenv("API_INTERNAL_TOKEN", "s3cret")
-    body = {"name": "Adaeze", "estate": "Magodo", "phone": "08031234567"}
-    assert client.post("/v1/demo-requests", json=body).status_code == 401
-    ok = client.post("/v1/demo-requests", json=body, headers={"Authorization": "Bearer s3cret"})
-    assert ok.status_code == 202
+    get_settings.cache_clear()
+    try:
+        body = {"name": "Adaeze", "estate": "Magodo", "phone": "08031234567"}
+        assert client.post("/v1/demo-requests", json=body).status_code == 401
+        ok = client.post("/v1/demo-requests", json=body, headers={"Authorization": "Bearer s3cret"})
+        assert ok.status_code == 202
+    finally:
+        monkeypatch.delenv("API_INTERNAL_TOKEN")
+        get_settings.cache_clear()

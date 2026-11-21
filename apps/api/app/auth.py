@@ -160,7 +160,7 @@ def current_device(authorization: str | None = Header(default=None)) -> DeviceAu
 def require_internal(authorization: str | None = Header(default=None)) -> None:
     expected = get_settings().api_internal_token
     if not expected:
-        if get_settings().is_production:
+        if get_settings().is_deployed:
             raise unauthorised()
         return
     if not hmac.compare_digest(authorization or "", f"Bearer {expected}"):

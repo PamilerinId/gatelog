@@ -1,13 +1,14 @@
 """Landing page demo requests (unchanged from the landing-page release)."""
 
 import logging
-import os
 import re
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, status
 from pydantic import BaseModel, Field, field_validator
+
+from app.auth import require_internal
 
 log = logging.getLogger("gatelog.api")
 router = APIRouter(tags=["landing"])
@@ -16,10 +17,9 @@ NG_PHONE = re.compile(r"^(\+?234|0)\d{10}$")
 
 
 def require_internal_token(authorization: str | None = Header(default=None)) -> None:
-    """The web app calls this API server-to-server. If a token is configured, require it."""
-    expected = os.getenv("API_INTERNAL_TOKEN")
-    if expected and authorization != f"Bearer {expected}":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthorised")
+    """The web app calls this API server-to-server. The same check as the internal routes:
+    the token is mandatory anywhere but local development."""
+    require_internal(authorization)
 
 
 class DemoRequest(BaseModel):

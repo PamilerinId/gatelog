@@ -150,6 +150,24 @@ class Router:
         return (self.whatsapp if msg.channel == "whatsapp" else self.sms).send(msg)
 
 
+class Withheld(Exception):
+    """Staging refused to send to a number that is not on its allowlist."""
+
+
+class AllowlistSender:
+    """Staging only. Wraps the real sender, so every path out (the queue, ops releases, direct
+    replies) passes the same check. Off the list: nothing is sent, and the caller is told."""
+
+    def __init__(self, inner: Sender, allowed: frozenset[str]) -> None:
+        self.inner, self.allowed = inner, allowed
+
+    def send(self, msg: Outgoing) -> str | None:
+        if msg.to not in self.allowed:
+            log.warning("message WITHHELD (staging allowlist) channel=%s to=%s kind=%s", msg.channel, phones.mask(msg.to), msg.kind)
+            raise Withheld(phones.mask(msg.to))
+        return self.inner.send(msg)
+
+
 _sender: Sender | None = None
 
 
@@ -163,6 +181,9 @@ def sender() -> Sender:
             _sender = Router(sms, wa)
         else:
             _sender = ConsoleSender()
+        allowed = s.send_allowlist
+        if allowed is not None:
+            _sender = AllowlistSender(_sender, allowed[0])
     return _sender
 
 
@@ -270,6 +291,8 @@ def dispatch(limit: int = 50) -> int:
                 m.provider_id = sender().send(Outgoing(phones.decrypt(number.e164_enc), m.channel, m.kind, m.body or "", m.params))
                 m.status, m.body, m.params, m.sent_at = "sent", None, None, clock.now()
                 sent += 1
+            except Withheld:  # staging: off the allowlist. Not sent, not retried, text kept to read.
+                m.status = "withheld"
             except Exception as exc:  # provider down or rejected: keep for the next tick
                 log.warning("send failed id=%s kind=%s to=***%s attempt=%d err=%s", m.id, m.kind, m.to_last4, m.attempts, type(exc).__name__)
                 if m.attempts >= MAX_ATTEMPTS:

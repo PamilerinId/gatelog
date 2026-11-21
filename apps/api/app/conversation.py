@@ -451,7 +451,10 @@ def handle(channel: str, from_raw: str, body: str, message_id: str | None = None
             # WhatsApp replies are free and reach only the real sender; still, once a day each and
             # a global ceiling. SMS replies to unknown numbers cost money: never.
             if channel == "whatsapp" and abuse.hit(s, abuse.UNKNOWN_REPLY, idx) and abuse.hit(s, abuse.UNKNOWN_REPLY_GLOBAL, "all"):
-                messaging.sender().send(messaging.Outgoing(e164, channel, "not_registered", NOT_REGISTERED, None))
+                try:
+                    messaging.sender().send(messaging.Outgoing(e164, channel, "not_registered", NOT_REGISTERED, None))
+                except messaging.Withheld:
+                    pass  # staging: already logged by the allowlist
             return Result()
         picked = _pick(s, matches, body)
         if picked is None:

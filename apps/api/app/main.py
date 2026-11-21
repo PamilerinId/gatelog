@@ -20,7 +20,7 @@ from .routers import admin, auth, demo, device, estate_map, imports, internal, o
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 settings = get_settings()
-app = FastAPI(title="Gatelog API", version="1.0.0", docs_url=None if settings.is_production else "/docs")
+app = FastAPI(title="Gatelog API", version="1.0.0", docs_url=None if settings.is_deployed else "/docs", redoc_url=None if settings.is_deployed else "/redoc", openapi_url=None if settings.is_deployed else "/openapi.json")
 
 app.add_middleware(
     CORSMiddleware,
