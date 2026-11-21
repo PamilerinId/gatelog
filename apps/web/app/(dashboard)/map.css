@@ -1172,3 +1172,49 @@
   font-size: 13px;
   color: var(--slate);
 }
+
+/* boundary: three numbered steps */
+.dash-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dash-step {
+  counter-increment: step;
+  position: relative;
+  padding-left: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.dash-step::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--lamp);
+  color: #141414;
+}
+.dash-step__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 24px;
+}
+.dash-step > .dash-find,
+.dash-step > .dash-actions {
+  align-self: stretch;
+}

@@ -109,6 +109,12 @@ async function OfficeToday() {
 
   if (bikes?.ok && bikes.data.filter((b) => b.active).length === 0) todo.push({ key: "bikes", text: "Add the shuttle's motorcycles", href: "/dashboard/gate#shuttle" });
 
+  // A new estate: the setup steps in order, until every one is done. Shown only when everything it
+  // needs loaded, so a slow API never makes a finished estate look unfinished.
+  const steps = setupSteps({ map, register, residents, guards, devices });
+  const setupKeys = new Set(["map", "pins", "nonum"]);
+  const rest = steps ? todo.filter((t) => !setupKeys.has(t.key)) : todo;
+
   return (
     <>
       <header className="dash-head">
@@ -121,17 +127,23 @@ async function OfficeToday() {
       <div className="dash-bigs">
         <BigNumber value={live.ok ? live.data.counts.inside : "..."} label="Guests inside now" />
         <BigNumber value={today.ok ? today.data.entries.total : "..."} label="Entries today" href="/dashboard/gate-log" />
-        <BigNumber value={todo.length} label={todo.length === 1 ? "Thing to do" : "Things to do"} tone={todo.length ? "warn" : undefined} />
+        {steps ? (
+          <BigNumber value={`${steps.filter((s) => s.done).length}/${steps.length}`} label="Setup steps done" tone="warn" />
+        ) : (
+          <BigNumber value={todo.length} label={todo.length === 1 ? "Thing to do" : "Things to do"} tone={todo.length ? "warn" : undefined} />
+        )}
       </div>
 
       {!live.ok && <ApiError error={live.error} />}
 
-      <h2 className="dash-h2 dash-mt">To do</h2>
-      {todo.length === 0 ? (
+      {steps && <SetupList steps={steps} />}
+
+      {(!steps || rest.length > 0) && <h2 className="dash-h2 dash-mt">{steps ? "Also to do" : "To do"}</h2>}
+      {steps && rest.length === 0 ? null : rest.length === 0 ? (
         <p className="dash-done">Nothing to do. Everything is set up and working.</p>
       ) : (
         <ul className="dash-todo">
-          {todo.map((t) => (
+          {rest.map((t) => (
             <li key={t.key}>
               <Link href={t.href} className={`dash-todo__item${t.tone ? ` is-${t.tone}` : ""}`}>
                 <span>{t.text}</span>
@@ -155,6 +167,84 @@ async function OfficeToday() {
         )}
       </p>
     </>
+  );
+}
+
+// --- setting up a new estate -------------------------------------------------------------------------
+
+type Loaded<T> = { ok: true; data: T } | { ok: false };
+type Step = { key: string; title: string; hint: string; href: string; done: boolean };
+
+/** The steps from an empty estate to a working gate, or null once they are all done (or when any of
+ * what they depend on failed to load). */
+function setupSteps(r: {
+  map: Loaded<{ bbox: unknown; gates: { lat: number | null }[] }>;
+  register: Loaded<ZoneNode[]>;
+  residents: Loaded<Resident[]>;
+  guards: Loaded<Guard[]>;
+  devices: Loaded<Device[]>;
+}): Step[] | null {
+  const { map, register, residents, guards, devices } = r;
+  if (!map.ok || !register.ok || !residents.ok || !guards.ok || !devices.ok) return null;
+  const homes = register.data.flatMap((z) => z.streets.flatMap((st) => st.homes));
+  const withNumber = new Set(residents.data.filter((x) => x.numbers.some((n) => !n.pending)).map((x) => x.home_id));
+  const active = guards.data.filter((g) => g.active);
+  const drawn = !!map.data.bbox;
+  const steps: Step[] = [
+    { key: "map", title: "Draw the estate on the map", hint: "Find the estate, then outline its walls.", href: "/dashboard/settings/map", done: drawn },
+    {
+      key: "pins",
+      title: "Put the gates on the map",
+      hint: "Drop a pin where each gate is.",
+      href: "/dashboard/settings/map",
+      done: drawn && map.data.gates.every((g) => g.lat != null),
+    },
+    { key: "homes", title: "Add the streets and homes", hint: "Zones or blocks, their streets, then each home.", href: "/dashboard/register#streets", done: homes.length > 0 },
+    {
+      key: "numbers",
+      title: "Add a phone number for every home",
+      hint: "Residents send and get guest codes from these numbers.",
+      href: "/dashboard/register?show=no-number",
+      done: homes.length > 0 && homes.every((h) => withNumber.has(h.id)),
+    },
+    { key: "guards", title: "Add the guards", hint: "With their consent form recorded.", href: "/dashboard/gate", done: active.some((g) => g.role === "guard") },
+    { key: "cso", title: "Add the CSO", hint: "The person guards call when they cannot decide.", href: "/dashboard/gate", done: active.some((g) => g.role === "cso") },
+    { key: "phone", title: "Pair the gate phone", hint: "Add the phone, then type its code into the Gatelog app.", href: "/dashboard/gate", done: devices.data.some((d) => d.status === "paired") },
+  ];
+  return steps.every((s) => s.done) ? null : steps;
+}
+
+function SetupList({ steps }: { steps: Step[] }) {
+  const next = steps.find((s) => !s.done)?.key;
+  return (
+    <section className="dash-mt" aria-labelledby="setup-title">
+      <h2 className="dash-h2" id="setup-title">
+        Set up your estate
+      </h2>
+      <ol className="dash-setup">
+        {steps.map((s) => (
+          <li key={s.key} className={`dash-setup__step${s.done ? " is-done" : ""}${s.key === next ? " is-next" : ""}`}>
+            <Link href={s.href} className="dash-setup__link" aria-current={s.key === next ? "step" : undefined}>
+              <span className="dash-setup__mark" aria-hidden="true">
+                {s.done ? "✓" : ""}
+              </span>
+              <span className="dash-setup__text">
+                <span className="dash-setup__title">
+                  {s.title}
+                  {s.done && <span className="sr-only"> (done)</span>}
+                </span>
+                {!s.done && <span className="dash-setup__hint">{s.hint}</span>}
+              </span>
+              {!s.done && (
+                <span className="dash-todo__go" aria-hidden="true">
+                  →
+                </span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

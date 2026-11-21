@@ -31,6 +31,51 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const round = (n: number) => Math.round(n * 1e6) / 1e6;
+const roundP = (p: LngLat): LngLat => [round(p[0]), round(p[1])];
+
+/** Metres per degree near the estate, so distances on the ground compare fairly in both directions. */
+function metres(lat: number) {
+  return { x: 111_320 * Math.cos((lat * Math.PI) / 180), y: 110_540 };
+}
+
+/** Where a new corner goes: on the outline's nearest edge, so the admin can click anywhere along a wall
+ * and the outline never crosses itself because of the click order. Fewer than 3 corners: at the end. */
+function insertCorner(corners: LngLat[], p: LngLat): LngLat[] {
+  if (corners.length < 3) return [...corners, p];
+  const k = metres(p[1]);
+  const xy = ([lng, lat]: LngLat) => [lng * k.x, lat * k.y] as const;
+  const [px, py] = xy(p);
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < corners.length; i++) {
+    const [ax, ay] = xy(corners[i]);
+    const [bx, by] = xy(corners[(i + 1) % corners.length]);
+    const dx = bx - ax;
+    const dy = by - ay;
+    const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+    const d = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    if (d < bestD) {
+      bestD = d;
+      best = i + 1;
+    }
+  }
+  return [...corners.slice(0, best), p, ...corners.slice(best)];
+}
+
+/** The outline's size on the ground, "About 650 m by 400 m", and whether it looks like an estate. */
+function outlineSize(corners: LngLat[]): { text: string; warn: string | null } | null {
+  if (corners.length < 3) return null;
+  const lngs = corners.map((c) => c[0]);
+  const lats = corners.map((c) => c[1]);
+  const k = metres((Math.min(...lats) + Math.max(...lats)) / 2);
+  const w = (Math.max(...lngs) - Math.min(...lngs)) * k.x;
+  const h = (Math.max(...lats) - Math.min(...lats)) * k.y;
+  const fmt = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.max(10, Math.round(m / 10) * 10)} m`);
+  const big = Math.max(w, h);
+  const warn =
+    big > 8000 ? "That is bigger than most estates. Zoom in and drag the corners onto the estate's walls." : big < 40 ? "That is very small for an estate. Drag the corners out to its walls." : null;
+  return { text: `About ${fmt(w)} by ${fmt(h)}.`, warn };
+}
 
 function pinEl(kind: string, label: string) {
   const el = document.createElement("div");
@@ -111,9 +156,55 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
     else if (a.what === "move-place") run(updatePlace, { id: a.id, lat: String(lat), lng: String(lng) });
   };
 
-  const addCorner = (p: LngLat) => {
-    setCorners((c) => [...c, [round(p[0]), round(p[1])]]);
+  // Every change to the outline goes through here, so Undo can step back through clicks and drags alike.
+  const past = useRef<LngLat[][]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const now = useRef(corners);
+  now.current = corners;
+  const change = (next: (c: LngLat[]) => LngLat[]) => {
+    const cur = now.current;
+    past.current = [...past.current.slice(-49), cur];
+    now.current = next(cur);
+    setCorners(now.current);
+    setCanUndo(true);
     setDirty(true);
+  };
+  const undo = () => {
+    const prev = past.current.pop();
+    if (prev) setCorners(prev);
+    setCanUndo(past.current.length > 0);
+    setDirty(true);
+  };
+
+  const addCorner = (p: LngLat) => change((c) => insertCorner(c, roundP(p)));
+
+  /** A box in the middle of the part of the map the panel does not cover: four corners the admin
+   * drags onto the walls. Never wider than an estate (about 500 m); the map zooms to fit it. */
+  const panelRef = useRef<HTMLElement>(null);
+  const startBox = () => {
+    if (!map) return;
+    const canvas = map.getCanvas().getBoundingClientRect();
+    const panel = panelRef.current?.getBoundingClientRect();
+    const left = panel && panel.right < canvas.left + canvas.width * 0.6 ? panel.right - canvas.left : 0;
+    const top = Math.min(140, canvas.height * 0.15); // the header's glass sits over the top of the map
+    const cx = (left + canvas.width) / 2;
+    const cy = (top + canvas.height) / 2;
+    const half = { x: (canvas.width - left) * 0.25, y: (canvas.height - top) * 0.25 };
+    const nw = map.unproject([cx - half.x, cy - half.y]);
+    const se = map.unproject([cx + half.x, cy + half.y]);
+    let [w, n, e, s] = [nw.lng, nw.lat, se.lng, se.lat];
+    const k = metres((n + s) / 2);
+    const MAX = 500;
+    if ((e - w) * k.x > MAX) {
+      const mid = map.unproject([cx, cy]);
+      // Keep the visible area's shape: on screen, pixels are the same size in both directions.
+      const hx = MAX / 2 / k.x;
+      const hy = ((MAX / 2) * (half.y / half.x)) / k.y;
+      [w, e, n, s] = [mid.lng - hx, mid.lng + hx, mid.lat + hy, mid.lat - hy];
+      map.fitBounds([w, s, e, n], { padding: { left: left + 80, top: top + 80, right: 80, bottom: 80 }, duration: 0 });
+    }
+    change(() => [roundP([w, n]), roundP([e, n]), roundP([e, s]), roundP([w, s])]);
+    setMsg(null);
   };
 
   // --- map clicks and Escape ----------------------------------------------------------------------
@@ -194,10 +285,7 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
 
     if (tab === "boundary")
       corners.forEach((c, i) =>
-        put(`corner:${i}`, "corner", String(i + 1), c, true, (p) => {
-          setCorners((all) => all.map((x, j) => (j === i ? [round(p[0]), round(p[1])] : x)));
-          setDirty(true);
-        }),
+        put(`corner:${i}`, "corner", String(i + 1), c, true, (p) => change((all) => all.map((x, j) => (j === i ? roundP(p) : x)))),
       );
     for (const g of data.gates) {
       if (g.lat == null || g.lng == null) continue;
@@ -242,6 +330,7 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
     if (c) placeAt(c, a);
   };
   const disabled = !hasBoundary;
+  const size = useMemo(() => outlineSize(corners), [corners]);
 
   function addPlace(e: FormEvent<HTMLFormElement>, where: "centre" | "click") {
     e.preventDefault();
@@ -261,7 +350,7 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
   return (
     <>
       <div className="dash-crosshair" aria-hidden="true" />
-      <section className="dash-glass dash-editor" aria-labelledby="editor-title">
+      <section ref={panelRef} className="dash-glass dash-editor" aria-labelledby="editor-title">
         <p className="dash-crumbs">
           <Link href="/dashboard/settings">Staff and settings</Link> <span aria-hidden="true">/</span> Estate map
         </p>
@@ -306,61 +395,90 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
 
         {tab === "boundary" && (
           <div className="dash-editor__body">
-            <p className="dash-small">
-              Click the map at each corner of the estate, in order around its edge. Drag a numbered corner to move it. From the keyboard, move the
-              map with the arrow keys and add a corner at the cross in the middle.
-            </p>
-            {!hasBoundary && <FindEstate map={map} onMessage={setMsg} />}
-            <p className="dash-small dash-muted" aria-live="polite">
-              {corners.length === 0 ? "No corners yet." : `${corners.length} ${corners.length === 1 ? "corner" : "corners"}${corners.length < 3 ? ", at least 3 needed" : ""}.`}
-            </p>
-            <div className="dash-actions dash-actions--tight">
-              <button type="button" className="dash-btn dash-btn--ghost dash-btn--sm" onClick={() => centre() && addCorner(centre()!)}>
-                Add a corner at the map centre
-              </button>
-              <button
-                type="button"
-                className="dash-btn dash-btn--ghost dash-btn--sm"
-                disabled={corners.length === 0}
-                onClick={() => {
-                  setCorners((c) => c.slice(0, -1));
-                  setDirty(true);
-                }}
-              >
-                Undo last corner
-              </button>
-              <button
-                type="button"
-                className="dash-btn dash-btn--ghost dash-btn--sm"
-                disabled={corners.length === 0}
-                onClick={() => {
-                  setCorners([]);
-                  setDirty(true);
-                }}
-              >
-                Clear
-              </button>
-              {dirty && hasBoundary && (
+            <ol className="dash-steps">
+              {!hasBoundary && (
+                <li className="dash-step">
+                  <h2 className="dash-step__title">Find your estate</h2>
+                  <FindEstate map={map} onMessage={setMsg} />
+                </li>
+              )}
+              <li className="dash-step">
+                <h2 className="dash-step__title">Outline it</h2>
+                {corners.length === 0 ? (
+                  <>
+                    <p className="dash-small">Put a box on the map, then drag its corners onto the estate&apos;s walls or fence.</p>
+                    <button type="button" className="dash-btn dash-btn--primary dash-btn--sm" onClick={startBox} disabled={!map}>
+                      Start with a box
+                    </button>
+                    <p className="dash-small dash-muted">Or click the map at each corner of the estate.</p>
+                  </>
+                ) : (
+                  <p className="dash-small">
+                    Drag the numbered corners onto the walls. Where a wall bends, click the map there to add a corner. From the keyboard, move the map
+                    with the arrow keys and add a corner at the cross in the middle.
+                  </p>
+                )}
+                <p className="dash-small dash-muted" aria-live="polite">
+                  {corners.length === 0
+                    ? ""
+                    : corners.length < 3
+                      ? `${corners.length} ${corners.length === 1 ? "corner" : "corners"}, at least 3 needed.`
+                      : `${corners.length} corners. ${size?.text ?? ""}`}
+                </p>
+                {size?.warn && (
+                  <p className="dash-msg dash-msg--warn" role="status">
+                    {size.warn}
+                  </p>
+                )}
+                {corners.length > 0 && (
+                  <div className="dash-actions dash-actions--tight">
+                    <button type="button" className="dash-btn dash-btn--ghost dash-btn--sm" onClick={() => centre() && addCorner(centre()!)}>
+                      Add a corner at the cross
+                    </button>
+                    <button type="button" className="dash-btn dash-btn--ghost dash-btn--sm" disabled={!canUndo} onClick={undo}>
+                      Undo
+                    </button>
+                    <button type="button" className="dash-btn dash-btn--ghost dash-btn--sm" onClick={() => change(() => [])}>
+                      Start again
+                    </button>
+                    {dirty && hasBoundary && (
+                      <button
+                        type="button"
+                        className="dash-btn dash-btn--quiet dash-btn--sm"
+                        onClick={() => {
+                          setCorners(data.boundary ?? []);
+                          past.current = [];
+                          setCanUndo(false);
+                          setDirty(false);
+                        }}
+                      >
+                        Go back to the saved boundary
+                      </button>
+                    )}
+                  </div>
+                )}
+              </li>
+              <li className="dash-step">
+                <h2 className="dash-step__title">Save</h2>
+                <p className="dash-small dash-muted">After saving, pin the gates, then the estate&apos;s places and homes.</p>
                 <button
                   type="button"
-                  className="dash-btn dash-btn--quiet dash-btn--sm"
-                  onClick={() => {
-                    setCorners(data.boundary ?? []);
-                    setDirty(false);
-                  }}
+                  className="dash-btn dash-btn--primary"
+                  disabled={corners.length < 3 || pending || !dirty}
+                  onClick={() =>
+                    run(saveBoundary, { ring: JSON.stringify(corners) }, (r) => {
+                      if (!r?.ok) return;
+                      setDirty(false);
+                      past.current = [];
+                      setCanUndo(false);
+                      if (!hasBoundary) setTab("gates");
+                    })
+                  }
                 >
-                  Go back to the saved boundary
+                  {pending ? "Saving..." : "Save boundary"}
                 </button>
-              )}
-            </div>
-            <button
-              type="button"
-              className="dash-btn dash-btn--primary"
-              disabled={corners.length < 3 || pending || !dirty}
-              onClick={() => run(saveBoundary, { ring: JSON.stringify(corners) }, (r) => r?.ok && setDirty(false))}
-            >
-              {pending ? "Saving..." : "Save boundary"}
-            </button>
+              </li>
+            </ol>
           </div>
         )}
 
@@ -589,7 +707,7 @@ function FindEstate({ map, onMessage }: { map: MapLibre | null; onMessage: (m: {
     if (h.bbox && Math.abs(h.bbox[2] - h.bbox[0]) > 0.004) map.fitBounds(h.bbox, { padding: 40, maxZoom: 17, duration: 0 });
     else map.jumpTo({ center: [h.lng, h.lat], zoom: 17 });
     setHits(null);
-    onMessage({ ok: true, text: "Now click the map at each corner of the estate." });
+    onMessage({ ok: true, text: "Found. Zoom in until you can see the estate's walls, then outline it below." });
   };
 
   async function find(e: FormEvent<HTMLFormElement>) {
@@ -630,7 +748,7 @@ function FindEstate({ map, onMessage }: { map: MapLibre | null; onMessage: (m: {
       (p) => {
         setBusy(null);
         map?.jumpTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 17 });
-        onMessage({ ok: true, text: "The map is on your location. Click the map at each corner of the estate." });
+        onMessage({ ok: true, text: "The map is on your location. Outline the estate below." });
       },
       (err) => {
         setBusy(null);

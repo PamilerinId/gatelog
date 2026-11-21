@@ -6,6 +6,8 @@ One short note per build step, newest first. The product rules are in `docs/spec
 
 - **Map setup:** "Find the estate" takes an estate name, street or area instead of latitude and longitude. The dashboard asks OpenStreetMap (Nominatim, Nigeria only) from its own server, at `/dashboard/geocode`, signed-in staff only, with a timeout, one retry and cached answers; several matches show as a list to pick from.
 - **Use my location:** for an admin standing in the estate. Pasted coordinates and Google Maps links still work.
+- **Outlining the estate:** three numbered steps (find, outline, save). "Start with a box" puts four corners over the visible map, at most about 500 m wide, to drag onto the walls. A click adds a corner on the nearest edge, so the click order no longer matters. The outline's size shows ("About 500 m by 400 m") with a warning when it is far too big or small. Undo covers drags too. After the first save the editor moves on to the gates.
+- **Today, for a new estate:** a "Set up your estate" checklist (map, gate pins, homes, phone numbers, guards, CSO, gate phone pairing), the next step highlighted, until every step is done. It replaces the matching to-do items meanwhile.
 
 ## 14 November 2026: step 3, the gate phone redesigned to the handoff
 
