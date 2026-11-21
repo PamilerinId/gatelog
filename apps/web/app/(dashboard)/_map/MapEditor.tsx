@@ -310,30 +310,7 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
               Click the map at each corner of the estate, in order around its edge. Drag a numbered corner to move it. From the keyboard, move the
               map with the arrow keys and add a corner at the cross in the middle.
             </p>
-            {!hasBoundary && (
-              <form
-                className="dash-inline-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const raw = String(new FormData(e.currentTarget).get("where") ?? "");
-                  const [a, b] = raw.split(/[,\s]+/).filter(Boolean).map(Number);
-                  if (!Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a) > 90 || Math.abs(b) > 180) {
-                    setMsg({ ok: false, text: "Type the estate's latitude and longitude, for example 6.6155, 3.3870." });
-                    return;
-                  }
-                  setMsg(null);
-                  map?.jumpTo({ center: [b, a], zoom: 16 });
-                }}
-              >
-                <label htmlFor="find-estate" className="dash-inline-label">
-                  Find the estate
-                </label>
-                <input id="find-estate" name="where" className="dash-input dash-input--sm" placeholder="Latitude, longitude" inputMode="decimal" autoComplete="off" />
-                <button type="submit" className="dash-btn dash-btn--ghost dash-btn--sm">
-                  Go
-                </button>
-              </form>
-            )}
+            {!hasBoundary && <FindEstate map={map} onMessage={setMsg} />}
             <p className="dash-small dash-muted" aria-live="polite">
               {corners.length === 0 ? "No corners yet." : `${corners.length} ${corners.length === 1 ? "corner" : "corners"}${corners.length < 3 ? ", at least 3 needed" : ""}.`}
             </p>
@@ -577,5 +554,131 @@ export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOpt
         )}
       </section>
     </>
+  );
+}
+
+// --- find the estate (before a boundary exists) ----------------------------------------------------
+
+type Hit = { label: string; lat: number; lng: number; bbox: [number, number, number, number] | null };
+
+/** Coordinates typed or pasted: "6.6155, 3.3870", or a Google Maps link ("@6.61,3.38," or "!3d6.61!4d3.38"). */
+function coordsIn(raw: string): LngLat | null {
+  const ok = (lat: number, lng: number): LngLat | null =>
+    Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [lng, lat] : null;
+  const pin = raw.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+  if (pin) return ok(Number(pin[1]), Number(pin[2]));
+  const at = raw.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (at) return ok(Number(at[1]), Number(at[2]));
+  const pair = raw.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)$/);
+  return pair ? ok(Number(pair[1]), Number(pair[2])) : null;
+}
+
+/** The first two parts of an OpenStreetMap address, then the rest, so the list reads quickly. */
+function splitLabel(label: string) {
+  const parts = label.split(", ");
+  return { head: parts.slice(0, 2).join(", "), rest: parts.slice(2, 5).join(", ") };
+}
+
+function FindEstate({ map, onMessage }: { map: MapLibre | null; onMessage: (m: { ok: boolean; text: string } | null) => void }) {
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [busy, setBusy] = useState<"search" | "locate" | null>(null);
+
+  const go = (h: Hit) => {
+    if (!map) return;
+    // A large match (a whole area) fits its box; a street or building zooms in close.
+    if (h.bbox && Math.abs(h.bbox[2] - h.bbox[0]) > 0.004) map.fitBounds(h.bbox, { padding: 40, maxZoom: 17, duration: 0 });
+    else map.jumpTo({ center: [h.lng, h.lat], zoom: 17 });
+    setHits(null);
+    onMessage({ ok: true, text: "Now click the map at each corner of the estate." });
+  };
+
+  async function find(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const q = String(new FormData(e.currentTarget).get("where") ?? "").trim();
+    onMessage(null);
+    setHits(null);
+    const c = coordsIn(q);
+    if (c) {
+      map?.jumpTo({ center: c, zoom: 17 });
+      return;
+    }
+    if (q.length < 3) {
+      onMessage({ ok: false, text: "Type the estate's name, or a nearby street, area or landmark." });
+      return;
+    }
+    setBusy("search");
+    try {
+      const res = await fetch(`/dashboard/geocode?${new URLSearchParams({ q })}`, { signal: AbortSignal.timeout(15000) });
+      const body = (await res.json().catch(() => ({}))) as { results?: Hit[]; error?: string };
+      if (!res.ok) return onMessage({ ok: false, text: body.error ?? "The place search did not work. Try again." });
+      const results = body.results ?? [];
+      if (results.length === 0) return onMessage({ ok: false, text: "Nothing found. Try a nearby street, area or landmark, such as \"Admiralty Way, Lekki\"." });
+      if (results.length === 1) return go(results[0]);
+      setHits(results);
+    } catch {
+      onMessage({ ok: false, text: "The place search did not answer. Check the connection and try again." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function locate() {
+    if (!("geolocation" in navigator)) return onMessage({ ok: false, text: "This browser cannot share its location. Search instead." });
+    onMessage(null);
+    setBusy("locate");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setBusy(null);
+        map?.jumpTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 17 });
+        onMessage({ ok: true, text: "The map is on your location. Click the map at each corner of the estate." });
+      },
+      (err) => {
+        setBusy(null);
+        onMessage({
+          ok: false,
+          text: err.code === err.PERMISSION_DENIED ? "Location is blocked for this site. Allow it in the browser, or search instead." : "Your location could not be found. Search instead.",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+    );
+  }
+
+  return (
+    <div className="dash-find">
+      <form className="dash-inline-form" onSubmit={find} role="search">
+        <label htmlFor="find-estate" className="dash-inline-label">
+          Find the estate
+        </label>
+        <input
+          id="find-estate"
+          name="where"
+          className="dash-input dash-input--sm"
+          placeholder="Estate name, street or area"
+          autoComplete="off"
+          enterKeyHint="search"
+        />
+        <button type="submit" className="dash-btn dash-btn--ghost dash-btn--sm" disabled={busy !== null}>
+          {busy === "search" ? "Finding…" : "Find"}
+        </button>
+        <button type="button" className="dash-link-btn" onClick={locate} disabled={busy !== null}>
+          {busy === "locate" ? "Finding you…" : "Use my location"}
+        </button>
+      </form>
+      {hits && (
+        <ul className="dash-find__hits" aria-label="Places found">
+          {hits.map((h) => {
+            const { head, rest } = splitLabel(h.label);
+            return (
+              <li key={`${h.lat},${h.lng}`}>
+                <button type="button" className="dash-find__hit" onClick={() => go(h)}>
+                  <span className="dash-find__head">{head}</span>
+                  {rest && <span className="dash-find__rest">{rest}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

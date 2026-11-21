@@ -2,6 +2,11 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 21 November 2026: finding the estate on the map without coordinates
+
+- **Map setup:** "Find the estate" takes an estate name, street or area instead of latitude and longitude. The dashboard asks OpenStreetMap (Nominatim, Nigeria only) from its own server, at `/dashboard/geocode`, signed-in staff only, with a timeout, one retry and cached answers; several matches show as a list to pick from.
+- **Use my location:** for an admin standing in the estate. Pasted coordinates and Google Maps links still work.
+
 ## 14 November 2026: step 3, the gate phone redesigned to the handoff
 
 - **Home:** the same three big buttons, always in the same place (Visitor has code, Phone call, Visitor leaving), Emergency numbers below, a network chip that says the phone still works offline.

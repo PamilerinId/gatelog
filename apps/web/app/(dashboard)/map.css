@@ -1129,3 +1129,46 @@
   color: var(--slate);
   text-decoration: line-through dotted;
 }
+
+/* find the estate: place search results */
+.dash-find {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dash-find__hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.dash-find__hits li + li {
+  border-top: 1px solid var(--line);
+}
+.dash-find__hit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-find__hit:hover,
+.dash-find__hit:focus-visible {
+  background: var(--navy-soft);
+}
+.dash-find__head {
+  font-weight: 600;
+}
+.dash-find__rest {
+  font-size: 13px;
+  color: var(--slate);
+}
