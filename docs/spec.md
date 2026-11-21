@@ -313,6 +313,8 @@ The directory's value is accuracy, so every number carries a last-verified date 
 
 No state-level number goes live until Gatelog ops has dialled it and recorded who answered and when. Numbers are not seeded from memory or a web list.
 
+An estate gets the state and LGA numbers that match its own state and LGA exactly. Gatelog ops sets them when creating the estate; the estate admin can correct them later in Settings (audited). The state is always one of the 36 states or the FCT, picked from a list, never typed.
+
 **Where it shows up.**
 
 - Gate phone: cached on the device, works offline, tap to call. Shown automatically beside every SOS alert.

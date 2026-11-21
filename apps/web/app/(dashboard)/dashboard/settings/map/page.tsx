@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getMap, getMe, load } from "@/app/(dashboard)/_lib/api";
+import { getEstate, getMap, getMe, load } from "@/app/(dashboard)/_lib/api";
 import type { ZoneNode } from "@/app/(dashboard)/_lib/types";
 import { ApiError, PageHead } from "@/app/(dashboard)/_components/ui";
 import { MapEditor } from "@/app/(dashboard)/_map/MapEditor";
@@ -16,7 +16,7 @@ export default async function MapEditorPage() {
       </>
     );
   }
-  const [map, register] = await Promise.all([getMap(), load<ZoneNode[]>("/v1/admin/register")]);
+  const [map, register, estate] = await Promise.all([getMap(), load<ZoneNode[]>("/v1/admin/register"), getEstate()]);
   if (!map.ok)
     return (
       <>
@@ -28,5 +28,6 @@ export default async function MapEditorPage() {
     ? register.data.flatMap((z) => z.streets.flatMap((st) => st.homes.map((h) => ({ id: h.id, address: h.address, group: `${z.name}, ${st.name}` }))))
     : [];
 
-  return <MapEditor data={map.data} homes={homes} />;
+  const area = estate.ok ? `${estate.data.lga}, ${estate.data.state}` : null;
+  return <MapEditor data={map.data} homes={homes} area={area} />;
 }

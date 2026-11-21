@@ -158,7 +158,7 @@ async function OfficeToday() {
 
       <p className="dash-alsolinks">
         Also: <Link href="/dashboard/gate-log">Gate log</Link> · <Link href="/dashboard/reports">Monthly report</Link> ·{" "}
-        <Link href="/dashboard/messaging">Messages</Link>
+        <Link href="/dashboard/messaging">Messages</Link> · <Link href="/dashboard/v2">Card view (v2)</Link>
         {shuttle && (
           <>
             {" "}

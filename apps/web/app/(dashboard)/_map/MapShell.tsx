@@ -42,7 +42,7 @@ export function MapShell({
       ? "edit"
       : !data.bbox
         ? "none"
-        : pathname === "/dashboard" && liveHome
+        : (pathname === "/dashboard" && liveHome) || pathname === "/dashboard/v2"
           ? "live"
           : "still";
 

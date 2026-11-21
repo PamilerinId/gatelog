@@ -8,6 +8,7 @@ import { ActionForm } from "@/app/(dashboard)/_components/ActionForm";
 import { ConfirmButton } from "@/app/(dashboard)/_components/ConfirmButton";
 import { ApiError, Fold, More, NotForRole, PageHead } from "@/app/(dashboard)/_components/ui";
 import { createStaff, setStaffActive, updateSettings, updateShuttleSettings, updateVisitorPhotos } from "../actions";
+import { EstateArea } from "./EstateArea";
 import { MessageName } from "./MessageName";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -34,15 +35,18 @@ export default async function SettingsPage() {
       {!estate.ok && <ApiError error={estate.error} />}
 
       <div className="dash-folds">
-        <Fold group="settings" title="Estate and message name" status={e ? (e.short_name ? `Messages start with ${e.short_name}` : e.name) : undefined}>
-          {e && (
-            <>
+        <Fold group="settings" title="Estate name, area and message name" status={e ? `${e.name}, ${e.lga}, ${e.state}` : undefined}>
+          {e &&
+            (me.role === "admin" ? (
+              <>
+                <EstateArea name={e.name} state={e.state} lga={e.lga} />
+                <MessageName shortName={e.short_name} estateName={e.name} />
+              </>
+            ) : (
               <p className="dash-small">
-                <strong>{e.name}</strong>, {e.lga}, {e.state}. Set up by Gatelog; ask Gatelog to change these.
+                <strong>{e.name}</strong>, {e.lga}, {e.state}. The estate admin can change these.
               </p>
-              <MessageName shortName={e.short_name} estateName={e.name} />
-            </>
-          )}
+            ))}
         </Fold>
 
         <Fold group="settings" title="Gate rules and times" status={s ? `Codes until ${clock12(s.code_valid_until)} · night list ${clock12(s.rollup_time)}` : undefined}>

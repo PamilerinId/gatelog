@@ -12,6 +12,7 @@ from sqlalchemy import select
 from .. import db, directory, keys, messaging
 from ..auth import Staff, require_ops
 from ..estate_settings import EstateSettings
+from ..ng import NgState
 from ..models import AuditEvent, DirectoryEntry, Estate, Gate, MessageLog, Organisation, StaffUser
 from .admin import _dir_out, dialable
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/v1/ops", tags=["gatelog ops"])
 
 class EstateIn(BaseModel):
     name: str = Field(min_length=2, max_length=160)
-    state: str = Field(min_length=2, max_length=60)
+    state: NgState
     lga: str = Field(min_length=2, max_length=80)
     timezone: str = "Africa/Lagos"
     admin_email: EmailStr
@@ -53,7 +54,7 @@ def create_estate(body: EstateIn, staff: Staff = Depends(require_ops)) -> dict:
 
 class StateNumberIn(BaseModel):
     scope: Literal["state", "lga"]
-    state: str = Field(min_length=2, max_length=60)
+    state: NgState
     lga: str | None = Field(default=None, max_length=80)
     category: Literal["crime", "fire", "medical", "utilities"]
     name: str = Field(min_length=2, max_length=120)

@@ -111,9 +111,26 @@ function draftGeo(corners: LngLat[]): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
 }
 
-export function MapEditor({ data, homes }: { data: EstateMapData; homes: HomeOption[] }) {
+export function MapEditor({ data, homes, area }: { data: EstateMapData; homes: HomeOption[]; area: string | null }) {
   const { map, lib, flyTo } = useEstateMap();
   const hasBoundary = !!data.boundary && data.boundary.length >= 3;
+
+  // Before a boundary exists, open on the estate's own LGA rather than a fixed default place.
+  // Once per visit; a failed search just leaves the map where it is (the admin can still search).
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!map || hasBoundary || !area || opened.current) return;
+    opened.current = true;
+    fetch(`/dashboard/geocode?${new URLSearchParams({ q: area })}`, { signal: AbortSignal.timeout(15000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { results?: { lat: number; lng: number; bbox: [number, number, number, number] | null }[] } | null) => {
+        const hit = body?.results?.[0];
+        if (!hit) return;
+        if (hit.bbox) map.fitBounds(hit.bbox, { padding: 40, maxZoom: 15, duration: 0 });
+        else map.jumpTo({ center: [hit.lng, hit.lat], zoom: 14 });
+      })
+      .catch(() => undefined);
+  }, [map, hasBoundary, area]);
   const [tab, setTab] = useState<Tab>(hasBoundary ? "gates" : "boundary");
   const [corners, setCorners] = useState<LngLat[]>(data.boundary ?? []);
   const [dirty, setDirty] = useState(false);

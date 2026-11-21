@@ -264,6 +264,10 @@ export async function updateMessageName(fd: FormData) {
   return act("PATCH", "/v1/admin/estate", { short_name: name || null }, name ? "Message name saved." : "Message name cleared. Messages use the estate's full name.");
 }
 
+export async function updateEstateArea(fd: FormData) {
+  return act("PATCH", "/v1/admin/estate", { name: str(fd, "name"), state: str(fd, "state"), lga: str(fd, "lga") }, "Estate name and area saved.");
+}
+
 export async function updateSettings(fd: FormData) {
   const n = (k: string) => Number(str(fd, k));
   return act(

@@ -2,6 +2,13 @@
 
 One short note per build step, newest first. The product rules are in `docs/spec.md`.
 
+## 22 November 2026: the estate admin corrects the estate's name and area
+
+- **Settings, "Estate name, area and message name":** the estate admin can change the estate's name, state and LGA (`PATCH /v1/admin/estate` takes `name`, `state`, `lga`), audited. Emergency numbers follow the new area. Other staff see the values read-only.
+- **One spelling per state:** the state must be one of the 36 states or the FCT (`app/ng.py`), for the admin and for ops, because state and LGA numbers reach an estate by an exact match.
+- **Map setup opens on the estate's LGA** instead of a fixed default place, until a boundary is drawn.
+- **Card view (v2):** the earlier, fuller dashboard (the live map with its status, live log and shuttle cards, and the last 30 days as stat cards) is back at `/dashboard/v2`, side by side with the simple one, to compare. Linked from Today and back.
+
 ## 21 November 2026: finding the estate on the map without coordinates
 
 - **Map setup:** "Find the estate" takes an estate name, street or area instead of latitude and longitude. The dashboard asks OpenStreetMap (Nominatim, Nigeria only) from its own server, at `/dashboard/geocode`, signed-in staff only, with a timeout, one retry and cached answers; several matches show as a list to pick from.

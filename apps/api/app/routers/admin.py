@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from .. import audit, clock, db, directory, keys, phones, push, storage
 from ..auth import Staff, new_pairing_code, require, sha256
 from ..estate_settings import EstateSettings
+from ..ng import NgState
 from ..plates import normalise_plate
 from ..models import (
     ENTRY_METHODS,
@@ -106,6 +107,11 @@ def get_estate(staff: Staff = Depends(reader)) -> dict:
 class EstatePatch(BaseModel):
     # Every message starts with this ("SKA Exco: ..."), because all estates share one WhatsApp number.
     short_name: str | None = Field(default=None, min_length=2, max_length=40)
+    # The estate's own name and area, first set by Gatelog ops. The state and LGA choose which state
+    # and LGA emergency numbers the estate gets (matched exactly), so the state must be one of the 37.
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    state: NgState | None = None
+    lga: str | None = Field(default=None, min_length=2, max_length=80)
 
 
 @router.patch("/estate")
@@ -115,8 +121,12 @@ def update_estate(body: EstatePatch, staff: Staff = Depends(admin)) -> dict:
         before = audit.snapshot(e)
         if "short_name" in body.model_fields_set:
             e.short_name = body.short_name.strip() if body.short_name else None
+        for field in ("name", "state", "lga"):
+            value = getattr(body, field)
+            if field in body.model_fields_set and value is not None:
+                setattr(e, field, " ".join(value.split()))
         audit.record(s, staff.estate_id, staff.actor, "update", e, before)
-        return {"short_name": e.short_name, "sender_name": e.sender_name}
+        return {"short_name": e.short_name, "sender_name": e.sender_name, "name": e.name, "state": e.state, "lga": e.lga}
 
 
 class SettingsPatch(BaseModel):
